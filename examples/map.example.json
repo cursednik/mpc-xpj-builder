@@ -1,0 +1,30 @@
+{
+  "samples": [
+    {
+      "file": "kick.wav",
+      "note": 36,
+      "gain": 1.0,
+      "pan": 0.5
+    },
+    {
+      "file": "snare.wav",
+      "note": 38,
+      "gain": 1.0,
+      "pan": 0.5
+    },
+    {
+      "file": "ride_roll.wav",
+      "note": 42,
+      "gain": 0.8,
+      "pan": 0.5,
+      "loop": false
+    },
+    {
+      "file": "ride_trigger.wav",
+      "note": 46,
+      "gain": 0.8,
+      "pan": 0.5,
+      "tune": 0.0
+    }
+  ]
+}
