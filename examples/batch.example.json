@@ -1,0 +1,19 @@
+{
+  "template": "D:\\MPC-Sample\\Projects\\reference.xpj",
+  "output": "D:\\MPC-Sample\\Projects",
+  "bpm": 174,
+  "jobs": [
+    {
+      "name": "Kit A",
+      "samples": "C:\\Samples\\Kit A",
+      "midi": "C:\\MIDI\\kit-a.mid",
+      "map": "C:\\Samples\\Kit A\\map.json"
+    },
+    {
+      "name": "Kit B",
+      "samples": "C:\\Samples\\Kit B",
+      "midi": "C:\\MIDI\\kit-b.mid",
+      "bpm": 160
+    }
+  ]
+}

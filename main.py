@@ -9,6 +9,7 @@ import traceback
 from pathlib import Path
 from typing import Sequence
 
+from batch import BatchJob, load_batch_manifest
 from errors import InputError, MpcBuilderError
 from midi_reader import MidiFileData, read_midi
 from project_writer import write_project
@@ -63,6 +64,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="XPJ",
         type=Path,
         help="Только прочитать reference.xpj и сохранить reference_pretty.json.",
+    )
+    parser.add_argument(
+        "--batch",
+        metavar="MANIFEST",
+        type=Path,
+        help="JSON-манифест с несколькими проектами.",
     )
     parser.add_argument("--samples", type=Path, help="Папка с WAV-семплами.")
     parser.add_argument("--midi", type=Path, help="Standard MIDI File (.mid/.midi).")
@@ -260,21 +267,12 @@ def _make_plan(
     return plan, template_header, template_payload
 
 
-def _run_export(args: argparse.Namespace) -> int:
-    plan, template_header, template_payload = _make_plan(args)
-    header_version = template_header.version if template_header else None
-
-    if args.dry_run:
-        _print_plan(plan, header_version)
-        if template_payload is None:
-            _print_calibration()
-            print("Dry-run: реальный экспорт без --template заблокирован.")
-        else:
-            print("Dry-run: файлы не создавались.")
-        return 0
-
+def _execute_plan(
+    plan: BuildPlan,
+    template_header: XPJHeader | None,
+    template_payload: dict | None,
+) -> tuple[Path, Path]:
     if template_payload is None or template_header is None:
-        _print_plan(plan, header_version)
         require_reference("data.tracks[].program.drum (полная структура проекта)")
 
     new_payload = build_from_template(template_payload, plan)
@@ -290,6 +288,89 @@ def _run_export(args: argparse.Namespace) -> int:
         "  Schema:      неизвестные поля сохранены из --template; "
         "см. unresolved_fields() в xpj_schema.py"
     )
+    return xpj_path, data_dir
+
+
+def _run_export(args: argparse.Namespace) -> int:
+    plan, template_header, template_payload = _make_plan(args)
+    header_version = template_header.version if template_header else None
+
+    if args.dry_run:
+        _print_plan(plan, header_version)
+        if template_payload is None:
+            _print_calibration()
+            print("Dry-run: реальный экспорт без --template заблокирован.")
+        else:
+            print("Dry-run: файлы не создавались.")
+        return 0
+
+    if template_payload is None or template_header is None:
+        _print_plan(plan, header_version)
+
+    _execute_plan(plan, template_header, template_payload)
+    return 0
+
+
+def _run_batch(args: argparse.Namespace) -> int:
+    _require_arg(args.batch, "--batch")
+    if args.inspect is not None:
+        raise InputError("--batch нельзя использовать вместе с --inspect.")
+    for name in ("samples", "midi", "name", "bpm", "sample_map"):
+        if getattr(args, name) is not None:
+            raise InputError(
+                f"С --batch нельзя использовать --{name.replace('_', '-')}; "
+                "укажите параметры в манифесте."
+            )
+
+    spec = load_batch_manifest(
+        args.batch,
+        default_template=args.template,
+        default_output=args.output,
+    )
+    print(f"Batch: {len(spec.jobs)} проект(ов)")
+
+    prepared: list[tuple[BatchJob, BuildPlan, XPJHeader | None, dict | None]] = []
+    for index, job in enumerate(spec.jobs, 1):
+        job_args = argparse.Namespace(
+            samples=job.samples,
+            midi=job.midi,
+            name=job.name,
+            bpm=job.bpm,
+            output=job.output,
+            template=job.template,
+            sample_map=job.sample_map,
+        )
+        try:
+            plan, header, payload = _make_plan(job_args)
+            if not args.dry_run and (header is None or payload is None):
+                require_reference("data.tracks[].program.drum (полная структура проекта)")
+        except MpcBuilderError as exc:
+            print(
+                f"Ошибка в {job.label} ({job.name!r}): {exc}",
+                file=sys.stderr,
+            )
+            if exc.details:
+                print(exc.details, file=sys.stderr)
+            return exc.exit_code
+        prepared.append((job, plan, header, payload))
+        print(f"  [{index}/{len(spec.jobs)}] подготовлен: {job.name}")
+
+    if args.dry_run:
+        for job, plan, header, _payload in prepared:
+            print(f"\n--- {job.label}: {job.name} ---")
+            _print_plan(plan, header.version if header else None)
+        if any(header is None for _job, _plan, header, _payload in prepared):
+            _print_calibration()
+            print("Dry-run: реальный экспорт без --template заблокирован.")
+        else:
+            print("Dry-run: файлы не создавались.")
+        return 0
+
+    for index, (job, plan, header, payload) in enumerate(prepared, 1):
+        print(f"\n[{index}/{len(prepared)}] {job.name}")
+        _execute_plan(plan, header, payload)
+
+    print(f"\nBatch завершён: {len(prepared)} проект(ов).")
     return 0
 
 
@@ -306,6 +387,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     _configure_logging(args.verbose)
 
     try:
+        if args.batch is not None:
+            return _run_batch(args)
         if args.inspect is not None:
             return _run_inspect(args)
         return _run_export(args)

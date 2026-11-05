@@ -153,6 +153,49 @@ My Kit_[ProjectData]\
   строку с клипами всех сохранённых треков. Инфраструктурные треки
   (submix/output) из эталона сохраняются.
 
+## Batch-режим `--batch`
+
+Один JSON-манифест — несколько проектов. Пример: `examples/batch.example.json`.
+
+```json
+{
+  "template": "D:\\MPC-Sample\\Projects\\reference.xpj",
+  "output": "D:\\MPC-Sample\\Projects",
+  "bpm": 174,
+  "jobs": [
+    {
+      "name": "Kit A",
+      "samples": "C:\\Samples\\Kit A",
+      "midi": "C:\\MIDI\\kit-a.mid",
+      "map": "C:\\Samples\\Kit A\\map.json"
+    },
+    {
+      "name": "Kit B",
+      "samples": "C:\\Samples\\Kit B",
+      "midi": "C:\\MIDI\\kit-b.mid",
+      "bpm": 160
+    }
+  ]
+}
+```
+
+Запуск:
+
+```powershell
+python main.py --batch "C:\MPC Projects\batch.json" --dry-run
+python main.py --batch "C:\MPC Projects\batch.json" --verbose
+```
+
+Правила:
+
+- относительные пути в манифесте считаются от папки манифеста;
+- `template`, `output`, `bpm` можно задать глобально и переопределить в job;
+- `map` задаётся на уровне job;
+- все job сначала проходят preflight;
+- при ошибке preflight **ни один** проект не записывается;
+- при ошибке записи уже созданные проекты не откатываются;
+- дубли имён/целей запрещены.
+
 ## Коды возврата
 
 | Код | Значение |
@@ -199,9 +242,10 @@ My Kit_[ProjectData]\
 python -m unittest discover -s tests -v
 ```
 
-Покрыты: карта `--map`, конфликты/ошибки карты, running status и note-on
-velocity 0 в MIDI, tempo/time signature, dry-run, экспорт с mapped-семплами,
-`sampleEnd`, `sliceInfo.End`, gain/pan/tune/loop и игнорирование лишних WAV.
+Покрыты: карта `--map`, конфликты/ошибки карты, batch-манифест и preflight,
+running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
+экспорт с mapped-семплами, `sampleEnd`, `sliceInfo.End`, gain/pan/tune/loop и
+игнорирование лишних WAV. Всего 24 теста.
 
 ## Статус проверки
 
