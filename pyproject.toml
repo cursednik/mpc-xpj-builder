@@ -28,6 +28,7 @@ classifiers = [
 
 [project.scripts]
 mpc-xpj-builder = "main:main"
+mpc-xpj-builder-gui = "gui:main"
 
 [project.optional-dependencies]
 dev = [
@@ -41,6 +42,7 @@ Homepage = "https://github.com/cursednik/mpc-xpj-builder"
 py-modules = [
   "batch",
   "errors",
+  "gui",
   "main",
   "midi_reader",
   "project_writer",

@@ -27,3 +27,6 @@ jobs:
 
       - name: CLI smoke test
         run: mpc-xpj-builder --version
+
+      - name: GUI import smoke test
+        run: python -c "import gui; print(gui.__version__)"

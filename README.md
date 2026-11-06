@@ -38,6 +38,24 @@ mpc-xpj-builder --help
 После установки доступна команда `mpc-xpj-builder` с теми же аргументами,
 что и `python main.py`.
 
+## GUI
+
+После установки:
+
+```powershell
+mpc-xpj-builder-gui
+```
+
+Или из исходников:
+
+```powershell
+python gui.py
+```
+
+GUI позволяет выбрать папку семплов, MIDI, эталонный `.xpj`, карту `--map`,
+имя/BPM/папку экспорта, посмотреть план (`--dry-run`) или создать проект.
+Сборка идёт в фоне, лог показывается в окне.
+
 ## Сборка `.exe`
 
 PyInstaller нужен только для сборки, не для работы:
@@ -45,9 +63,15 @@ PyInstaller нужен только для сборки, не для работ�
 ```powershell
 python -m pip install -e ".[dev]"
 powershell -ExecutionPolicy Bypass -File .\scripts\build_exe.ps1 -Clean
+powershell -ExecutionPolicy Bypass -File .\scripts\build_gui_exe.ps1 -Clean
 ```
 
-Результат: `dist\mpc-xpj-builder.exe`.
+Результаты:
+
+```text
+dist\mpc-xpj-builder.exe
+dist\mpc-xpj-builder-gui.exe
+```
 
 ## Как получить эталон
 
@@ -290,8 +314,8 @@ python -m unittest discover -s tests -v
 
 Покрыты: карта `--map`, конфликты/ошибки карты, batch-манифест и preflight,
 running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
-экспорт с mapped-семплами, `sampleEnd`, `sliceInfo.End`, gain/pan/tune/loop и
-игнорирование лишних WAV. Всего 24 теста.
+экспорт с mapped-семплами, `sampleEnd`, `sliceInfo.End`, gain/pan/tune/loop,
+GUI-аргументы и игнорирование лишних WAV. Всего 29 тестов.
 
 ## Статус проверки
 
