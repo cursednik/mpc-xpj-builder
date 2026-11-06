@@ -1,5 +1,7 @@
 # mpc_xpj_builder (prototype)
 
+[![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
+
 Консольный прототип сборки минимального drum-проекта для **Akai MPC Sample** из
 папки WAV и одного Standard MIDI File.
 
@@ -21,7 +23,31 @@
 
 ## Зависимости
 
-Только стандартная библиотека Python 3.11+. Внешние пакеты не нужны.
+Только стандартная библиотека Python 3.11+. Runtime-зависимостей нет.
+
+## Установка как CLI
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .
+mpc-xpj-builder --version
+mpc-xpj-builder --help
+```
+
+После установки доступна команда `mpc-xpj-builder` с теми же аргументами,
+что и `python main.py`.
+
+## Сборка `.exe`
+
+PyInstaller нужен только для сборки, не для работы:
+
+```powershell
+python -m pip install -e ".[dev]"
+powershell -ExecutionPolicy Bypass -File .\scripts\build_exe.ps1 -Clean
+```
+
+Результат: `dist\mpc-xpj-builder.exe`.
 
 ## Как получить эталон
 

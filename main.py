@@ -44,6 +44,7 @@ from xpj_schema import (
     unresolved_fields,
     validate_template_payload,
 )
+from version import __version__
 from xpj_writer import XPJHeader, read_xpj
 
 
@@ -58,6 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Создание минимального drum-проекта Akai MPC Sample (.xpj) "
             "из папки WAV и Standard MIDI File."
         ),
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
     parser.add_argument(
         "--inspect",

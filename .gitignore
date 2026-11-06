@@ -2,3 +2,8 @@ __pycache__/
 *.py[cod]
 reference_pretty.json
 .venv/
+build/
+dist/
+*.spec
+*.egg-info/
+

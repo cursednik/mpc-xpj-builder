@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mpc-xpj-builder"
+description = "Akai MPC Sample .xpj project builder from WAV + MIDI"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+dynamic = ["version"]
+authors = [
+  { name = "Cursednik" }
+]
+keywords = ["akai", "mpc", "mpc-sample", "xpj", "midi", "wav"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Multimedia :: Sound/Audio",
+  "Topic :: Multimedia :: Sound/Audio :: MIDI",
+]
+
+[project.scripts]
+mpc-xpj-builder = "main:main"
+
+[project.optional-dependencies]
+dev = [
+  "pyinstaller>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/cursednik/mpc-xpj-builder"
+
+[tool.setuptools]
+py-modules = [
+  "batch",
+  "errors",
+  "main",
+  "midi_reader",
+  "project_writer",
+  "sample_map",
+  "validators",
+  "version",
+  "wav_pool",
+  "xpj_inspector",
+  "xpj_schema",
+  "xpj_writer",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "version.__version__" }
