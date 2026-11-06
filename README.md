@@ -67,6 +67,14 @@ GUI позволяет выбрать папку семплов, MIDI, этал�
 - загрузка/сохранение `map.json`;
 - «Сохранить и применить» подставляет путь в поле `--map`.
 
+GUI сохраняет последние папки, MIDI, template, map, имя, BPM и флаги в:
+
+```text
+%APPDATA%\mpc-xpj-builder\settings.json
+```
+
+При следующем запуске поля заполняются автоматически.
+
 ## Сборка `.exe`
 
 PyInstaller нужен только для сборки, не для работы:
@@ -75,6 +83,7 @@ PyInstaller нужен только для сборки, не для работ�
 python -m pip install -e ".[dev]"
 powershell -ExecutionPolicy Bypass -File .\scripts\build_exe.ps1 -Clean
 powershell -ExecutionPolicy Bypass -File .\scripts\build_gui_exe.ps1 -Clean
+powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```
 
 Результаты:
@@ -82,6 +91,19 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_gui_exe.ps1 -Clean
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
+dist\mpc-xpj-builder-v0.8.0-win64.zip
+```
+
+Windows installer (нужен Inno Setup 6):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
+```
+
+Результат:
+
+```text
+dist\mpc-xpj-builder-v0.8.0-setup.exe
 ```
 
 ## Как получить эталон
@@ -357,8 +379,8 @@ python -m unittest discover -s tests -v
 Покрыты: карта `--map`, конфликты/ошибки карты, batch-манифест и preflight,
 running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
 экспорт с mapped-семплами, `sampleEnd`, `sliceInfo.End`, gain/pan/tune/loop,
-GUI-аргументы, pad-based карта, extended-ноты, автоназначение и игнорирование
-лишних WAV. Всего 40 тестов.
+GUI-аргументы, pad-based карта, extended-ноты, автоназначение, настройки GUI
+и игнорирование лишних WAV. Всего 44 теста.
 
 ## Статус проверки
 

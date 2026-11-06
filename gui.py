@@ -15,6 +15,7 @@ from typing import Sequence
 
 import main as cli
 from gui_map import MapEditorWindow
+from settings import GuiSettings, load_settings, save_settings
 from validators import MAX_BPM, MIN_BPM
 from version import __version__
 
@@ -101,17 +102,19 @@ class App:
         self.dry_run = False
         self.map_editor: MapEditorWindow | None = None
 
-        self.samples_var = tk.StringVar()
-        self.midi_var = tk.StringVar()
-        self.name_var = tk.StringVar(value="My Kit")
-        self.bpm_var = tk.StringVar(value="120")
-        self.output_var = tk.StringVar()
-        self.template_var = tk.StringVar()
-        self.map_var = tk.StringVar()
-        self.extended_var = tk.BooleanVar(value=False)
-        self.verbose_var = tk.BooleanVar(value=True)
+        saved = load_settings()
+        self.samples_var = tk.StringVar(value=saved.samples)
+        self.midi_var = tk.StringVar(value=saved.midi)
+        self.name_var = tk.StringVar(value=saved.name)
+        self.bpm_var = tk.StringVar(value=saved.bpm)
+        self.output_var = tk.StringVar(value=saved.output)
+        self.template_var = tk.StringVar(value=saved.template)
+        self.map_var = tk.StringVar(value=saved.sample_map)
+        self.extended_var = tk.BooleanVar(value=saved.extended_notes)
+        self.verbose_var = tk.BooleanVar(value=saved.verbose)
 
         self._build_ui()
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.after(100, self._poll)
 
     def _build_ui(self) -> None:
@@ -367,6 +370,28 @@ class App:
     def _on_map_saved(self, path: Path) -> None:
         self.map_var.set(str(path))
         self.status_var.set(f"Карта применена: {path}")
+
+    def _on_close(self) -> None:
+        try:
+            save_settings(
+                GuiSettings(
+                    samples=self.samples_var.get(),
+                    midi=self.midi_var.get(),
+                    name=self.name_var.get(),
+                    bpm=self.bpm_var.get(),
+                    output=self.output_var.get(),
+                    template=self.template_var.get(),
+                    sample_map=self.map_var.get(),
+                    extended_notes=self.extended_var.get(),
+                    verbose=self.verbose_var.get(),
+                )
+            )
+        except OSError as exc:
+            messagebox.showwarning(
+                "Настройки",
+                f"Не удалось сохранить настройки:\n{exc}",
+            )
+        self.root.destroy()
 
     def _open_output(self) -> None:
         output = self.output_var.get().strip()

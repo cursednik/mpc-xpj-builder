@@ -50,6 +50,7 @@ py-modules = [
   "pads",
   "project_writer",
   "sample_map",
+  "settings",
   "validators",
   "version",
   "wav_pool",
