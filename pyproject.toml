@@ -41,13 +41,16 @@ Homepage = "https://github.com/cursednik/mpc-xpj-builder"
 [tool.setuptools]
 py-modules = [
   "batch",
+  "dnd",
   "errors",
   "gui",
   "gui_map",
+  "gui_projects",
   "kit_map",
   "main",
   "midi_reader",
   "pads",
+  "project_library",
   "project_writer",
   "sample_map",
   "settings",

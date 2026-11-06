@@ -76,6 +76,18 @@ GUI сохраняет последние папки, MIDI, template, map, им�
 При следующем запуске поля заполняются автоматически. GUI также хранит до 10
 последних созданных проектов; выбранный проект можно открыть в проводнике.
 
+Кнопка **«Проекты…»** открывает browser всех `.xpj` в папке экспорта:
+имя, BPM, число семплов, такты, число треков, дата изменения. Оттуда можно
+открыть папку проекта или назначить проект эталоном.
+
+В главное окно можно перетащить:
+
+- папку с WAV — подставится в `--samples`;
+- `.wav` — подставится его папка;
+- `.mid` / `.midi` — MIDI;
+- `.xpj` — эталон;
+- `.json` — карта `--map`.
+
 ## Сборка `.exe`
 
 PyInstaller нужен только для сборки, не для работы:
@@ -92,7 +104,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v0.9.0-win64.zip
+dist\mpc-xpj-builder-v0.10.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -104,7 +116,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v0.9.0-setup.exe
+dist\mpc-xpj-builder-v0.10.0-setup.exe
 ```
 
 ## Как получить эталон
@@ -380,8 +392,9 @@ python -m unittest discover -s tests -v
 Покрыты: карта `--map`, конфликты/ошибки карты, batch-манифест и preflight,
 running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
 экспорт с mapped-семплами, `sampleEnd`, `sliceInfo.End`, gain/pan/tune/loop,
-GUI-аргументы, pad-based карта, extended-ноты, автоназначение, настройки GUI,
-recent projects и игнорирование лишних WAV. Всего 45 тестов.
+GUI-аргументы, project browser, drag-and-drop routing, pad-based карта,
+extended-ноты, автоназначение, настройки GUI, recent projects и игнорирование
+лишних WAV. Всего 51 тест.
 
 ## Статус проверки
 

@@ -14,7 +14,9 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 from typing import Sequence
 
 import main as cli
+from dnd import disable_file_drop, enable_file_drop, route_dropped
 from gui_map import MapEditorWindow
+from gui_projects import ProjectBrowserWindow
 from settings import GuiSettings, load_settings, remember_recent, save_settings
 from validators import MAX_BPM, MIN_BPM
 from version import __version__
@@ -101,6 +103,7 @@ class App:
         self.running = False
         self.dry_run = False
         self.map_editor: MapEditorWindow | None = None
+        self.project_browser: ProjectBrowserWindow | None = None
 
         saved = load_settings()
         self.recent_projects = list(saved.recent_projects)
@@ -118,6 +121,7 @@ class App:
         )
 
         self._build_ui()
+        enable_file_drop(self.root, self._handle_drop)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.after(100, self._poll)
 
@@ -174,9 +178,15 @@ class App:
             command=self._open_recent,
         ).grid(row=8, column=2, padx=(8, 0), pady=3)
 
+        ttk.Label(
+            form,
+            text="Можно перетащить в окно папку WAV, MIDI, .xpj или map.json",
+            foreground="#666666",
+        ).grid(row=9, column=0, columnspan=3, sticky="w", pady=(4, 0))
+
         actions = ttk.Frame(outer)
         actions.grid(row=1, column=0, sticky="ew", pady=(10, 8))
-        for column in range(5):
+        for column in range(6):
             actions.columnconfigure(column, weight=1)
 
         self.plan_button = ttk.Button(
@@ -200,19 +210,26 @@ class App:
         )
         self.map_button.grid(row=0, column=2, sticky="ew", padx=5)
 
+        self.projects_button = ttk.Button(
+            actions,
+            text="Проекты…",
+            command=self._open_project_browser,
+        )
+        self.projects_button.grid(row=0, column=3, sticky="ew", padx=5)
+
         self.open_button = ttk.Button(
             actions,
             text="Открыть папку",
             command=self._open_output,
         )
-        self.open_button.grid(row=0, column=3, sticky="ew", padx=5)
+        self.open_button.grid(row=0, column=4, sticky="ew", padx=5)
 
         self.clear_button = ttk.Button(
             actions,
             text="Очистить лог",
             command=self._clear_log,
         )
-        self.clear_button.grid(row=0, column=4, sticky="ew", padx=(5, 0))
+        self.clear_button.grid(row=0, column=5, sticky="ew", padx=(5, 0))
 
         log_frame = ttk.LabelFrame(outer, text="Лог", padding=8)
         log_frame.grid(row=2, column=0, sticky="nsew")
@@ -285,6 +302,7 @@ class App:
             self.plan_button,
             self.export_button,
             self.map_button,
+            self.projects_button,
             self.open_button,
             self.clear_button,
         ):
@@ -397,6 +415,24 @@ class App:
         self.map_var.set(str(path))
         self.status_var.set(f"Карта применена: {path}")
 
+    def _open_project_browser(self) -> None:
+        if (
+            self.project_browser is not None
+            and self.project_browser.winfo_exists()
+        ):
+            self.project_browser.lift()
+            self.project_browser.focus_force()
+            return
+        self.project_browser = ProjectBrowserWindow(
+            self.root,
+            folder_provider=lambda: self.output_var.get() or str(Path.cwd()),
+            on_use_template=self._on_project_template,
+        )
+
+    def _on_project_template(self, path: Path) -> None:
+        self.template_var.set(str(path))
+        self.status_var.set(f"Эталон выбран: {path}")
+
     def _save_settings(self, *, show_error: bool) -> None:
         try:
             save_settings(
@@ -422,7 +458,31 @@ class App:
 
     def _on_close(self) -> None:
         self._save_settings(show_error=True)
+        disable_file_drop(self.root)
         self.root.destroy()
+
+    def _handle_drop(self, paths: list[str]) -> None:
+        result = route_dropped(paths)
+        changed: list[str] = []
+        if result.samples is not None:
+            self.samples_var.set(str(result.samples))
+            changed.append("WAV-папка")
+        if result.midi is not None:
+            self.midi_var.set(str(result.midi))
+            changed.append("MIDI")
+        if result.template is not None:
+            self.template_var.set(str(result.template))
+            changed.append(".xpj")
+        if result.sample_map is not None:
+            self.map_var.set(str(result.sample_map))
+            changed.append("map.json")
+        if changed:
+            self.status_var.set("Перетащено: " + ", ".join(changed))
+        if result.unsupported:
+            self.status_var.set(
+                "Не поддержано: "
+                + ", ".join(path.name for path in result.unsupported[:3])
+            )
 
     def _remember_recent(self, path: str) -> None:
         self.recent_projects = list(remember_recent(self.recent_projects, path))
