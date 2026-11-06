@@ -262,6 +262,26 @@ python main.py --batch "C:\MPC Projects\batch.json" --verbose
 - `loadImpl` встречается как `0`, так и `1`;
 - порядок клипов в строке сохраняется из эталона.
 
+## Hardware test kit
+
+Сгенерировать набор проектов для ручной проверки на MPC Sample:
+
+```powershell
+python scripts/make_hardware_test_kit.py `
+  --template "D:\MPC-Sample\Projects\                0.xpj" `
+  --output "D:\MPC-Sample\Projects\XPJ Hardware Test"
+```
+
+Создаются:
+
+- `XPJ Test Notes` — 17 нот 35..51;
+- `XPJ Test Loop` — loop-семпл;
+- `XPJ Test Long` — длинный one-shot;
+- `XPJ Test 128` — 128 WAV;
+- `README-HARDWARE-TEST.md` — чек-лист.
+
+Подробности: `docs/HARDWARE_TEST.md`.
+
 ## Тесты
 
 ```powershell
