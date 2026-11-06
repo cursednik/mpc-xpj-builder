@@ -15,7 +15,7 @@ from typing import Sequence
 
 import main as cli
 from gui_map import MapEditorWindow
-from settings import GuiSettings, load_settings, save_settings
+from settings import GuiSettings, load_settings, remember_recent, save_settings
 from validators import MAX_BPM, MIN_BPM
 from version import __version__
 
@@ -103,6 +103,7 @@ class App:
         self.map_editor: MapEditorWindow | None = None
 
         saved = load_settings()
+        self.recent_projects = list(saved.recent_projects)
         self.samples_var = tk.StringVar(value=saved.samples)
         self.midi_var = tk.StringVar(value=saved.midi)
         self.name_var = tk.StringVar(value=saved.name)
@@ -112,6 +113,9 @@ class App:
         self.map_var = tk.StringVar(value=saved.sample_map)
         self.extended_var = tk.BooleanVar(value=saved.extended_notes)
         self.verbose_var = tk.BooleanVar(value=saved.verbose)
+        self.recent_var = tk.StringVar(
+            value=self.recent_projects[0] if self.recent_projects else ""
+        )
 
         self._build_ui()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -153,6 +157,22 @@ class App:
             text="Подробный лог (--verbose)",
             variable=self.verbose_var,
         ).pack(side="left")
+
+        ttk.Label(form, text="Последний проект").grid(
+            row=8, column=0, sticky="w", padx=(0, 8), pady=3
+        )
+        self.recent_combo = ttk.Combobox(
+            form,
+            textvariable=self.recent_var,
+            values=self.recent_projects,
+            state="readonly",
+        )
+        self.recent_combo.grid(row=8, column=1, sticky="ew", pady=3)
+        ttk.Button(
+            form,
+            text="Открыть папку",
+            command=self._open_recent,
+        ).grid(row=8, column=2, padx=(8, 0), pady=3)
 
         actions = ttk.Frame(outer)
         actions.grid(row=1, column=0, sticky="ew", pady=(10, 8))
@@ -336,6 +356,12 @@ class App:
             if dry_run:
                 self.status_var.set("План готов. Файлы не создавались.")
             else:
+                for line in output.splitlines():
+                    if line.strip().startswith("XPJ:"):
+                        created = line.split("XPJ:", 1)[1].strip()
+                        if created:
+                            self._remember_recent(created)
+                            break
                 self.status_var.set("Проект создан.")
                 messagebox.showinfo("Готово", "Проект успешно создан.")
         else:
@@ -371,7 +397,7 @@ class App:
         self.map_var.set(str(path))
         self.status_var.set(f"Карта применена: {path}")
 
-    def _on_close(self) -> None:
+    def _save_settings(self, *, show_error: bool) -> None:
         try:
             save_settings(
                 GuiSettings(
@@ -384,14 +410,46 @@ class App:
                     sample_map=self.map_var.get(),
                     extended_notes=self.extended_var.get(),
                     verbose=self.verbose_var.get(),
+                    recent_projects=tuple(self.recent_projects),
                 )
             )
         except OSError as exc:
-            messagebox.showwarning(
-                "Настройки",
-                f"Не удалось сохранить настройки:\n{exc}",
-            )
+            if show_error:
+                messagebox.showwarning(
+                    "Настройки",
+                    f"Не удалось сохранить настройки:\n{exc}",
+                )
+
+    def _on_close(self) -> None:
+        self._save_settings(show_error=True)
         self.root.destroy()
+
+    def _remember_recent(self, path: str) -> None:
+        self.recent_projects = list(remember_recent(self.recent_projects, path))
+        self.recent_var.set(path)
+        self.recent_combo.configure(values=self.recent_projects)
+        self._save_settings(show_error=False)
+
+    def _open_recent(self) -> None:
+        raw = self.recent_var.get().strip()
+        if not raw:
+            messagebox.showinfo("Последние проекты", "Список пока пуст.")
+            return
+        path = Path(raw)
+        if not path.is_file():
+            self.recent_projects = [
+                item for item in self.recent_projects if item != raw
+            ]
+            self.recent_combo.configure(values=self.recent_projects)
+            self.recent_var.set(
+                self.recent_projects[0] if self.recent_projects else ""
+            )
+            messagebox.showerror("Последние проекты", f"Файл не найден:\n{path}")
+            return
+        try:
+            os.startfile(str(path.parent))  # type: ignore[attr-defined]
+        except OSError as exc:
+            messagebox.showerror("Не удалось открыть папку", str(exc))
 
     def _open_output(self) -> None:
         output = self.output_var.get().strip()

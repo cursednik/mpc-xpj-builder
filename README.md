@@ -73,7 +73,8 @@ GUI сохраняет последние папки, MIDI, template, map, им�
 %APPDATA%\mpc-xpj-builder\settings.json
 ```
 
-При следующем запуске поля заполняются автоматически.
+При следующем запуске поля заполняются автоматически. GUI также хранит до 10
+последних созданных проектов; выбранный проект можно открыть в проводнике.
 
 ## Сборка `.exe`
 
@@ -91,7 +92,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v0.8.0-win64.zip
+dist\mpc-xpj-builder-v0.9.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -103,7 +104,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v0.8.0-setup.exe
+dist\mpc-xpj-builder-v0.9.0-setup.exe
 ```
 
 ## Как получить эталон
@@ -379,8 +380,8 @@ python -m unittest discover -s tests -v
 Покрыты: карта `--map`, конфликты/ошибки карты, batch-манифест и preflight,
 running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
 экспорт с mapped-семплами, `sampleEnd`, `sliceInfo.End`, gain/pan/tune/loop,
-GUI-аргументы, pad-based карта, extended-ноты, автоназначение, настройки GUI
-и игнорирование лишних WAV. Всего 44 теста.
+GUI-аргументы, pad-based карта, extended-ноты, автоназначение, настройки GUI,
+recent projects и игнорирование лишних WAV. Всего 45 тестов.
 
 ## Статус проверки
 
@@ -391,7 +392,7 @@ GUI-аргументы, pad-based карта, extended-ноты, автоназ�
 семпла загрузились. Это подтвердило pad-based mapping и загрузку банка B.
 `XPJ Test Long` и `XPJ Test 128` также прошли проверку. Loop-фикс подтверждён
 проектом `XPJ Loop Final`: loop играет сразу после загрузки, без ручного
-переключения.
+переключения. Музыкальный `PSX DnB Break` на 8 падов также подтверждён.
 
 ## Источники наблюдений
 

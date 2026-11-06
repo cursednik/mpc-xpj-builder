@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from settings import GuiSettings, load_settings, save_settings
+from settings import GuiSettings, load_settings, remember_recent, save_settings
 
 
 class SettingsTests(unittest.TestCase):
@@ -37,6 +37,18 @@ class SettingsTests(unittest.TestCase):
         save_settings(original, self.path)
         loaded = load_settings(self.path)
         self.assertEqual(loaded, original)
+
+    def test_recent_projects_roundtrip_and_dedupe(self) -> None:
+        projects = remember_recent((), r"D:\Projects\Kit.xpj")
+        projects = remember_recent(projects, r"D:\Projects\Other.xpj")
+        projects = remember_recent(projects, r"D:\Projects\Kit.xpj")
+        self.assertEqual(
+            projects,
+            (r"D:\Projects\Kit.xpj", r"D:\Projects\Other.xpj"),
+        )
+        original = GuiSettings(recent_projects=projects)
+        save_settings(original, self.path)
+        self.assertEqual(load_settings(self.path).recent_projects, projects)
 
     def test_malformed_json_falls_back(self) -> None:
         self.path.parent.mkdir(parents=True)

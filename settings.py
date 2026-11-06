@@ -20,6 +20,7 @@ class GuiSettings:
     sample_map: str = ""
     extended_notes: bool = False
     verbose: bool = True
+    recent_projects: tuple[str, ...] = ()
 
 
 def settings_path() -> Path:
@@ -37,6 +38,13 @@ def _text(data: dict, key: str, default: str) -> str:
 def _bool(data: dict, key: str, default: bool) -> bool:
     value = data.get(key)
     return value if isinstance(value, bool) else default
+
+
+def _text_list(data: dict, key: str) -> tuple[str, ...]:
+    value = data.get(key)
+    if not isinstance(value, list):
+        return ()
+    return tuple(item for item in value if isinstance(item, str) and item)
 
 
 def load_settings(path: Path | None = None) -> GuiSettings:
@@ -62,7 +70,23 @@ def load_settings(path: Path | None = None) -> GuiSettings:
             data, "extended_notes", defaults.extended_notes
         ),
         verbose=_bool(data, "verbose", defaults.verbose),
+        recent_projects=_text_list(data, "recent_projects"),
     )
+
+
+def remember_recent(
+    projects: tuple[str, ...] | list[str],
+    path: Path | str,
+    limit: int = 10,
+) -> tuple[str, ...]:
+    text = str(path)
+    result = [text]
+    result.extend(
+        item
+        for item in projects
+        if item.casefold() != text.casefold()
+    )
+    return tuple(result[: max(1, limit)])
 
 
 def save_settings(
