@@ -503,7 +503,10 @@ def _assign_layer(layer: dict[str, Any], binding: PadBinding) -> None:
     layer["sampleStart"] = 0
     layer["sampleEnd"] = 0
     layer["sliceIndex"] = 129
-    layer["loop"] = bool(binding.loop) if binding.loop is not None else False
+    loop_enabled = bool(binding.loop) if binding.loop is not None else False
+    layer["loop"] = loop_enabled
+    layer["loopMode"] = 1 if loop_enabled else 0
+    layer["layerLoopModeOverridesSliceLoopMode"] = loop_enabled
 
     if binding.tune is not None:
         coarse, fine = _tune_parts(binding.tune)
@@ -533,10 +536,13 @@ def _assign_layer(layer: dict[str, Any], binding: PadBinding) -> None:
     slice_info["Start"] = 0
     slice_info["End"] = max(0, sample.info.frames - 1)
     slice_info["LoopStart"] = 0
-    slice_info["LoopMode"] = 1 if layer["loop"] else 0
-    if layer["loop"]:
+    slice_info["LoopMode"] = 1 if loop_enabled else 0
+    if loop_enabled:
         layer["loopStart"] = 0
         layer["loopEnd"] = max(0, sample.info.frames - 1)
+    else:
+        layer["loopStart"] = 0
+        layer["loopEnd"] = 0
     slice_info.setdefault("PulsePosition", 0)
     slice_info.setdefault("LoopCrossfadeLength", 0)
     slice_info.setdefault("LoopCrossfadeType", 0)

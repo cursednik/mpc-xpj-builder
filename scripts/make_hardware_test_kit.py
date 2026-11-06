@@ -201,7 +201,9 @@ def make_kit(template: Path, output: Path, bpm: int) -> None:
 
         # 4. 128 samples, no map: first 17 go to notes 35..51.
         pool_dir = work / "pool128"
-        for index in range(1, 129):
+        # note 35 -> pad 128; sample_001 -> pad A1, ... sample_016 -> A16.
+        write_wav(pool_dir / "00_note_35.wav", 0.18, midi_to_freq(35))
+        for index in range(1, 128):
             frequency = 80.0 + (index - 1) * 7.0
             write_wav(pool_dir / f"sample_{index:03d}.wav", 0.18, frequency)
         pool_midi = work / "pool128.mid"
