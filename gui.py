@@ -14,6 +14,7 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 from typing import Sequence
 
 import main as cli
+from gui_map import MapEditorWindow
 from validators import MAX_BPM, MIN_BPM
 from version import __version__
 
@@ -95,6 +96,7 @@ class App:
         self.queue: queue.Queue[tuple[int, str, str, bool]] = queue.Queue()
         self.running = False
         self.dry_run = False
+        self.map_editor: MapEditorWindow | None = None
 
         self.samples_var = tk.StringVar()
         self.midi_var = tk.StringVar()
@@ -142,7 +144,7 @@ class App:
 
         actions = ttk.Frame(outer)
         actions.grid(row=1, column=0, sticky="ew", pady=(10, 8))
-        for column in range(4):
+        for column in range(5):
             actions.columnconfigure(column, weight=1)
 
         self.plan_button = ttk.Button(
@@ -159,19 +161,26 @@ class App:
         )
         self.export_button.grid(row=0, column=1, sticky="ew", padx=5)
 
+        self.map_button = ttk.Button(
+            actions,
+            text="Карта семплов…",
+            command=self._open_map_editor,
+        )
+        self.map_button.grid(row=0, column=2, sticky="ew", padx=5)
+
         self.open_button = ttk.Button(
             actions,
             text="Открыть папку",
             command=self._open_output,
         )
-        self.open_button.grid(row=0, column=2, sticky="ew", padx=5)
+        self.open_button.grid(row=0, column=3, sticky="ew", padx=5)
 
         self.clear_button = ttk.Button(
             actions,
             text="Очистить лог",
             command=self._clear_log,
         )
-        self.clear_button.grid(row=0, column=3, sticky="ew", padx=(5, 0))
+        self.clear_button.grid(row=0, column=4, sticky="ew", padx=(5, 0))
 
         log_frame = ttk.LabelFrame(outer, text="Лог", padding=8)
         log_frame.grid(row=2, column=0, sticky="nsew")
@@ -243,6 +252,7 @@ class App:
         for button in (
             self.plan_button,
             self.export_button,
+            self.map_button,
             self.open_button,
             self.clear_button,
         ):
@@ -331,6 +341,22 @@ class App:
         self.log.configure(state="normal")
         self.log.delete("1.0", "end")
         self.log.configure(state="disabled")
+
+    def _open_map_editor(self) -> None:
+        if self.map_editor is not None and self.map_editor.winfo_exists():
+            self.map_editor.lift()
+            self.map_editor.focus_force()
+            return
+        self.map_editor = MapEditorWindow(
+            self.root,
+            samples_provider=lambda: self.samples_var.get(),
+            template_provider=lambda: self.template_var.get(),
+            on_saved=self._on_map_saved,
+        )
+
+    def _on_map_saved(self, path: Path) -> None:
+        self.map_var.set(str(path))
+        self.status_var.set(f"Карта применена: {path}")
 
     def _open_output(self) -> None:
         output = self.output_var.get().strip()

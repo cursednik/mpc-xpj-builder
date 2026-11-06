@@ -43,6 +43,8 @@ py-modules = [
   "batch",
   "errors",
   "gui",
+  "gui_map",
+  "kit_map",
   "main",
   "midi_reader",
   "project_writer",
