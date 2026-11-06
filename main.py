@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Sequence
 
 from batch import BatchJob, load_batch_manifest
-from errors import InputError, MpcBuilderError
+from errors import InputError, MpcBuilderError, ValidationError
 from midi_reader import MidiFileData, read_midi
+from pads import default_note_to_pad_full
 from project_writer import write_project
 from sample_map import prepare_mapped_pool
 from validators import (
@@ -98,6 +99,11 @@ def build_parser() -> argparse.ArgumentParser:
             "JSON-карта WAV -> MIDI note. Без неё семплы назначаются "
             "позиционно по сортировке имён."
         ),
+    )
+    parser.add_argument(
+        "--extended-notes",
+        action="store_true",
+        help="Разрешить MIDI-ноты 0..127 (банки B-H), а не только 35..51.",
     )
     parser.add_argument(
         "--dry-run",
@@ -208,7 +214,10 @@ def _make_plan(
         midi.tempo_bpm,
     )
     validate_notes_present(len(midi.notes))
-    validate_note_range({note.pitch for note in midi.notes})
+    validate_note_range(
+        {note.pitch for note in midi.notes},
+        extended=args.extended_notes,
+    )
 
     template_header: XPJHeader | None = None
     template_payload: dict | None = None
@@ -222,7 +231,11 @@ def _make_plan(
             template_header.platform,
         )
     else:
-        note_to_pad = default_note_to_pad()
+        note_to_pad = (
+            default_note_to_pad_full()
+            if args.extended_notes
+            else default_note_to_pad()
+        )
         _logger().warning(
             "Эталонный .xpj не указан: карта нот используется только для "
             "планирования; реальный экспорт будет заблокирован."
@@ -230,7 +243,10 @@ def _make_plan(
 
     if mapping_path is not None:
         pool, bindings = prepare_mapped_pool(
-            mapping_path, samples_dir, note_to_pad
+            mapping_path,
+            samples_dir,
+            note_to_pad,
+            allow_extended_notes=args.extended_notes,
         )
         _logger().debug("Карта семплов: %s", mapping_path)
     else:
@@ -238,7 +254,26 @@ def _make_plan(
         validate_sample_count(pool.count)
         unique_notes = len({note.pitch for note in midi.notes})
         validate_samples_cover_notes(pool.count, unique_notes)
-        bindings = assign_samples_to_pads(pool.samples, midi, note_to_pad)
+        bindings = assign_samples_to_pads(
+            pool.samples,
+            midi,
+            note_to_pad,
+            allow_extended_notes=args.extended_notes,
+        )
+
+    bound_notes = {
+        binding.midi_note
+        for binding in bindings
+        if binding.midi_note is not None
+    }
+    missing_notes = sorted(
+        {note.pitch for note in midi.notes} - bound_notes
+    )
+    if missing_notes:
+        shown = ", ".join(str(note) for note in missing_notes[:16])
+        raise ValidationError(
+            f"В карте нет назначений для MIDI-нот: {shown}."
+        )
 
     _logger().debug("Семплов в проекте: %d", pool.count)
     for sample in pool.samples:
@@ -345,6 +380,7 @@ def _run_batch(args: argparse.Namespace) -> int:
             output=job.output,
             template=job.template,
             sample_map=job.sample_map,
+            extended_notes=job.extended_notes,
         )
         try:
             plan, header, payload = _make_plan(job_args)

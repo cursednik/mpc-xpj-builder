@@ -9,15 +9,19 @@ from pathlib import Path
 from typing import Iterable
 
 from errors import ValidationError
+from pads import (
+    BANK_NAMES,
+    PADS_PER_BANK,
+    TOTAL_PADS,
+    bank_pad_label,
+    default_pad_to_note_full,
+    global_pad_index,
+)
 from sample_map import load_sample_map
-from validators import MAX_DRUM_NOTE, MIN_DRUM_NOTE
+from validators import MAX_EXTENDED_NOTE, MIN_EXTENDED_NOTE
 from wav_pool import inspect_wav, scan_wav_files
-from xpj_schema import default_note_to_pad, extract_note_to_pad
+from xpj_schema import extract_note_to_pad
 from xpj_writer import read_xpj
-
-BANK_NAMES = "ABCDEFGH"
-PADS_PER_BANK = 16
-TOTAL_PADS = 128
 
 _NUMERIC_PREFIX = re.compile(r"^\s*(\d{1,3})(?:[_\-\s.]|$)")
 _KEYWORD_RULES = (
@@ -68,14 +72,18 @@ class WavItem:
 
 @dataclass(frozen=True)
 class PadAssignment:
-    """Назначение семпла на note/pad."""
+    """Назначение семпла на конкретный pad."""
 
-    note: int
+    pad_index: int
     file: str
     gain: float = 1.0
     pan: float = 0.5
     tune: float = 0.0
     loop: bool = False
+
+    @property
+    def pad_label(self) -> str:
+        return bank_pad_label(self.pad_index)
 
 
 def scan_wav_items(folder: Path) -> tuple[WavItem, ...]:
@@ -98,24 +106,12 @@ def scan_wav_items(folder: Path) -> tuple[WavItem, ...]:
     return tuple(items)
 
 
-def global_pad_index(bank: str, pad_number: int) -> int:
-    """A1 -> 0, H16 -> 127."""
-    bank = bank.strip().upper()
-    if len(bank) != 1 or bank not in BANK_NAMES:
-        raise ValueError(f"Неизвестный банк: {bank!r}.")
-    if not 1 <= pad_number <= PADS_PER_BANK:
-        raise ValueError("Pad должен быть в диапазоне 1..16.")
-    return BANK_NAMES.index(bank) * PADS_PER_BANK + pad_number - 1
-
-
-def bank_pad_label(pad_index: int) -> str:
-    if not 0 <= pad_index < TOTAL_PADS:
-        raise ValueError(f"Некорректный pad index: {pad_index}.")
-    return f"{BANK_NAMES[pad_index // PADS_PER_BANK]}{pad_index % PADS_PER_BANK + 1}"
-
-
 def default_pad_to_note() -> dict[int, int]:
-    return {pad: note for note, pad in default_note_to_pad().items()}
+    return default_pad_to_note_full()
+
+
+def default_note_to_pad() -> dict[int, int]:
+    return {note: pad for pad, note in default_pad_to_note_full().items()}
 
 
 def pad_to_note_from_template(
@@ -127,40 +123,51 @@ def pad_to_note_from_template(
     try:
         _, payload, _ = read_xpj(template)
         note_to_pad = extract_note_to_pad(payload)
-        return {
-            pad: note
-            for note, pad in note_to_pad.items()
-            if MIN_DRUM_NOTE <= note <= MAX_DRUM_NOTE
-        }, None
+        return {pad: note for note, pad in note_to_pad.items()}, None
     except Exception as exc:
         return default_pad_to_note(), str(exc)
 
 
-def load_kit_map(path: Path) -> dict[int, PadAssignment]:
+def load_kit_map(
+    path: Path,
+    note_to_pad: dict[int, int] | None = None,
+) -> dict[int, PadAssignment]:
     """Загрузить map.json в модель редактора."""
-    entries = load_sample_map(path)
-    return {
-        entry.note: PadAssignment(
-            note=entry.note,
+    if note_to_pad is None:
+        note_to_pad = {note: pad for pad, note in default_pad_to_note().items()}
+    entries = load_sample_map(path, allow_extended_notes=True)
+    result: dict[int, PadAssignment] = {}
+    for entry in entries:
+        if entry.pad_index is not None:
+            pad_index = entry.pad_index
+        else:
+            if entry.note is None:
+                raise ValidationError(f"В записи {entry.label!r} нужен note или pad.")
+            pad_index = note_to_pad.get(entry.note)
+            if pad_index is None:
+                raise ValidationError(
+                    f"Нет pad для note {entry.note} в текущем шаблоне."
+                )
+        result[pad_index] = PadAssignment(
+            pad_index=pad_index,
             file=entry.file,
             gain=1.0 if entry.gain is None else entry.gain,
             pan=0.5 if entry.pan is None else entry.pan,
             tune=0.0 if entry.tune is None else entry.tune,
             loop=bool(entry.loop),
         )
-        for entry in entries
-    }
+    return result
 
 
 def save_kit_map(path: Path, assignments: dict[int, PadAssignment]) -> Path:
     """Сохранить map.json в формате --map."""
     samples = []
-    for note in sorted(assignments):
-        assignment = assignments[note]
+    for pad_index in sorted(assignments):
+        assignment = assignments[pad_index]
         samples.append(
             {
+                "pad": assignment.pad_label,
                 "file": assignment.file,
-                "note": assignment.note,
                 "gain": float(assignment.gain),
                 "pan": float(assignment.pan),
                 "tune": float(assignment.tune),
@@ -178,7 +185,7 @@ def _note_from_filename(stem: str) -> int | None:
     numeric = _NUMERIC_PREFIX.match(stem)
     if numeric:
         note = int(numeric.group(1))
-        if MIN_DRUM_NOTE <= note <= MAX_DRUM_NOTE:
+        if MIN_EXTENDED_NOTE <= note <= MAX_EXTENDED_NOTE:
             return note
     lowered = stem.casefold()
     for token, note in _KEYWORD_RULES:
@@ -191,18 +198,34 @@ def auto_assign(
     items: Iterable[WavItem],
     assignments: dict[int, PadAssignment],
     note_to_pad: dict[int, int],
+    *,
+    fill_free: bool = False,
 ) -> dict[int, PadAssignment]:
-    """Автоназначить новые семплы, не трогая уже занятые notes."""
+    """Автоназначить новые семплы, не трогая уже занятые pads."""
     result = dict(assignments)
     used_files = {assignment.file for assignment in result.values()}
-    used_notes = set(result)
+    used_pads = set(result)
+    items = tuple(items)
+
     for item in items:
         note = _note_from_filename(Path(item.relative).stem)
-        if note is None or note in used_notes or item.relative in used_files:
+        if note is None or item.relative in used_files:
             continue
-        if note not in note_to_pad:
+        pad = note_to_pad.get(note)
+        if pad is None or pad in used_pads:
             continue
-        result[note] = PadAssignment(note=note, file=item.relative)
-        used_notes.add(note)
+        result[pad] = PadAssignment(pad_index=pad, file=item.relative)
         used_files.add(item.relative)
+        used_pads.add(pad)
+
+    if fill_free:
+        free_pads = [pad for pad in range(TOTAL_PADS) if pad not in used_pads]
+        for item, pad in zip(
+            (item for item in items if item.relative not in used_files),
+            free_pads,
+        ):
+            result[pad] = PadAssignment(pad_index=pad, file=item.relative)
+            used_files.add(item.relative)
+            used_pads.add(pad)
+
     return result

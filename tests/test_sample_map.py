@@ -69,6 +69,40 @@ class SampleMapTests(unittest.TestCase):
         self.assertEqual(pool.count, 2)
         self.assertEqual([binding.midi_note for binding in bindings], [36, 38])
 
+    def test_pad_based_entry(self) -> None:
+        map_path = self.root / "map.json"
+        write_map(
+            map_path,
+            {"samples": [{"pad": "A3", "file": "snare.wav", "gain": 0.7}]},
+        )
+        note_to_pad = {36: 0, 38: 2, 42: 6, 52: 16}
+        pool, bindings = prepare_mapped_pool(
+            map_path, self.samples, note_to_pad
+        )
+        self.assertEqual(pool.count, 1)
+        self.assertEqual(bindings[0].pad_index, 2)
+        self.assertEqual(bindings[0].midi_note, 38)
+        self.assertEqual(bindings[0].gain, 0.7)
+
+    def test_extended_note_entry(self) -> None:
+        map_path = self.root / "map.json"
+        write_map(
+            map_path,
+            {"samples": [{"note": 52, "file": "kick.wav"}]},
+        )
+        note_to_pad = {36: 0, 38: 2, 42: 6, 52: 16}
+        with self.assertRaisesRegex(ValidationError, "35..51"):
+            prepare_mapped_pool(map_path, self.samples, note_to_pad)
+        pool, bindings = prepare_mapped_pool(
+            map_path,
+            self.samples,
+            note_to_pad,
+            allow_extended_notes=True,
+        )
+        self.assertEqual(pool.count, 1)
+        self.assertEqual(bindings[0].pad_index, 16)
+        self.assertEqual(bindings[0].midi_note, 52)
+
     def test_same_file_can_feed_two_notes(self) -> None:
         map_path = self.root / "map.json"
         write_map(

@@ -23,6 +23,7 @@ class BatchJob:
     output: Path
     template: Path | None
     sample_map: Path | None
+    extended_notes: bool = False
 
 
 @dataclass(frozen=True)
@@ -34,7 +35,16 @@ class BatchSpec:
 
 
 _TOP_LEVEL_KEYS = {"jobs", "template", "output", "bpm"}
-_JOB_KEYS = {"name", "samples", "midi", "bpm", "output", "template", "map"}
+_JOB_KEYS = {
+    "name",
+    "samples",
+    "midi",
+    "bpm",
+    "output",
+    "template",
+    "map",
+    "extended_notes",
+}
 
 
 def _resolve(base: Path, raw: Any, field: str) -> Path:
@@ -147,6 +157,9 @@ def load_batch_manifest(
         sample_map = _optional_path(
             base, raw.get("map"), f"{label}.map", None
         )
+        extended_notes = raw.get("extended_notes", False)
+        if not isinstance(extended_notes, bool):
+            raise ValidationError(f"{label}.extended_notes должен быть bool.")
 
         bpm = _optional_bpm(raw.get("bpm"), f"{label}.bpm")
         if bpm is None:
@@ -178,6 +191,7 @@ def load_batch_manifest(
                 output=output,
                 template=template,
                 sample_map=sample_map,
+                extended_notes=extended_notes,
             )
         )
 

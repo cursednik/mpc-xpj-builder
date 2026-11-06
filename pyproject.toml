@@ -47,6 +47,7 @@ py-modules = [
   "kit_map",
   "main",
   "midi_reader",
+  "pads",
   "project_writer",
   "sample_map",
   "validators",

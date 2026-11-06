@@ -11,6 +11,8 @@ from errors import ValidationError
 MAX_SAMPLES = 128
 MIN_DRUM_NOTE = 35
 MAX_DRUM_NOTE = 51
+MIN_EXTENDED_NOTE = 0
+MAX_EXTENDED_NOTE = 127
 MIN_BPM = 20.0
 MAX_BPM = 300.0
 PPQ = 960
@@ -74,17 +76,24 @@ def validate_sample_count(count: int) -> None:
         )
 
 
-def validate_note_range(pitches: set[int] | list[int] | tuple[int, ...]) -> None:
-    """Разрешить только drum-ноты MIDI 35..51."""
+def validate_note_range(
+    pitches: set[int] | list[int] | tuple[int, ...],
+    *,
+    extended: bool = False,
+) -> None:
+    """Разрешить drum-ноты 35..51 или, в extended-режиме, 0..127."""
+    minimum = MIN_EXTENDED_NOTE if extended else MIN_DRUM_NOTE
+    maximum = MAX_EXTENDED_NOTE if extended else MAX_DRUM_NOTE
     invalid = sorted(
-        pitch for pitch in set(pitches) if not MIN_DRUM_NOTE <= pitch <= MAX_DRUM_NOTE
+        pitch for pitch in set(pitches) if not minimum <= pitch <= maximum
     )
     if invalid:
         shown = ", ".join(str(pitch) for pitch in invalid[:16])
         suffix = "..." if len(invalid) > 16 else ""
+        mode = "0..127" if extended else f"{MIN_DRUM_NOTE}..{MAX_DRUM_NOTE}"
         raise ValidationError(
-            "Поддерживаются только drum-ноты MIDI "
-            f"{MIN_DRUM_NOTE}..{MAX_DRUM_NOTE}. Найдены неподдерживаемые ноты: {shown}{suffix}."
+            f"Поддерживаются только MIDI-ноты {mode}. "
+            f"Найдены неподдерживаемые ноты: {shown}{suffix}."
         )
 
 

@@ -251,6 +251,8 @@ def assign_samples_to_pads(
     samples: tuple[PoolSample, ...],
     midi: MidiFileData,
     note_to_pad: dict[int, int],
+    *,
+    allow_extended_notes: bool = False,
 ) -> tuple[PadBinding, ...]:
     """Сопоставить WAV-семплы нотам и свободным падам.
 
@@ -260,7 +262,7 @@ def assign_samples_to_pads(
     if len(samples) > MAX_SAMPLES:
         raise ValidationError("Слишком много семплов.")
     pitches = sorted({note.pitch for note in midi.notes})
-    validate_note_range(pitches)
+    validate_note_range(pitches, extended=allow_extended_notes)
     validate_samples_cover_notes(len(samples), len(pitches))
 
     used_pads: set[int] = set()

@@ -42,10 +42,16 @@ class GuiArgsTests(unittest.TestCase):
         return build_cli_args(**values)
 
     def test_basic_args(self) -> None:
-        args = self._args(sample_map=str(self.map_path), dry_run=True, verbose=True)
+        args = self._args(
+            sample_map=str(self.map_path),
+            dry_run=True,
+            verbose=True,
+            extended_notes=True,
+        )
         self.assertIn("--map", args)
         self.assertIn("--dry-run", args)
         self.assertIn("--verbose", args)
+        self.assertIn("--extended-notes", args)
         self.assertEqual(args[args.index("--name") + 1], "Gui Kit")
 
     def test_empty_name_rejected(self) -> None:

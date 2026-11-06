@@ -170,6 +170,45 @@ class IntegrationExportTests(unittest.TestCase):
         self.assertTrue((output / "Positional Test.xpj").is_file())
         self.assertTrue((output / "Positional Test_[ProjectData]").is_dir())
 
+    def test_extended_notes_and_pad_b1(self) -> None:
+        midi = self.root / "b1.mid"
+        write_midi(midi, [(0, 52, 100, 100)])
+        map_path = self.root / "b1-map.json"
+        write_map(
+            map_path,
+            {"samples": [{"pad": "B1", "file": "snare.wav"}]},
+        )
+        output = self.root / "out_b1"
+        with contextlib.redirect_stdout(io.StringIO()):
+            rc = cli.main(
+                [
+                    "--samples",
+                    str(self.samples),
+                    "--midi",
+                    str(midi),
+                    "--name",
+                    "Extended Test",
+                    "--bpm",
+                    "150",
+                    "--output",
+                    str(output),
+                    "--template",
+                    str(self.template),
+                    "--map",
+                    str(map_path),
+                    "--extended-notes",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        _, payload, _ = read_xpj(output / "Extended Test.xpj")
+        data = payload["data"]
+        sequence = data["sequences"][0]["value"]
+        events = sequence["trackClipMaps"][0][0]["value"]["eventList"]["events"]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["note"]["note"], 52)
+        layer = data["tracks"][0]["program"]["drum"]["instruments"][16]["layersv"][0]
+        self.assertEqual(layer["sampleFile"], "snare.wav")
+
     def test_dry_run_mapping_creates_nothing(self) -> None:
         with contextlib.redirect_stdout(io.StringIO()):
             rc = cli.main(

@@ -25,6 +25,12 @@
       "gain": 0.8,
       "pan": 0.5,
       "tune": 0.0
+    },
+    {
+      "file": "extra_perc.wav",
+      "pad": "B1",
+      "gain": 0.8,
+      "pan": 0.5
     }
   ]
 }

@@ -30,6 +30,7 @@ def build_cli_args(
     sample_map: str = "",
     dry_run: bool = False,
     verbose: bool = False,
+    extended_notes: bool = False,
 ) -> list[str]:
     """Собрать argv для main.py с понятными ошибками формы."""
     project_name = name.strip()
@@ -83,6 +84,8 @@ def build_cli_args(
     ]
     if map_path is not None:
         args.extend(["--map", str(map_path)])
+    if extended_notes:
+        args.append("--extended-notes")
     if dry_run:
         args.append("--dry-run")
     if verbose:
@@ -105,6 +108,7 @@ class App:
         self.output_var = tk.StringVar()
         self.template_var = tk.StringVar()
         self.map_var = tk.StringVar()
+        self.extended_var = tk.BooleanVar(value=False)
         self.verbose_var = tk.BooleanVar(value=True)
 
         self._build_ui()
@@ -136,6 +140,11 @@ class App:
 
         options = ttk.Frame(form)
         options.grid(row=7, column=1, sticky="w", pady=(6, 0))
+        ttk.Checkbutton(
+            options,
+            text="Extended notes 0..127 (--extended-notes)",
+            variable=self.extended_var,
+        ).pack(side="left", padx=(0, 12))
         ttk.Checkbutton(
             options,
             text="Подробный лог (--verbose)",
@@ -274,6 +283,7 @@ class App:
                 sample_map=self.map_var.get(),
                 dry_run=dry_run,
                 verbose=self.verbose_var.get(),
+                extended_notes=self.extended_var.get(),
             )
         except ValueError as exc:
             messagebox.showerror("Проверьте параметры", str(exc))

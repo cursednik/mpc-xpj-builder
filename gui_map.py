@@ -21,8 +21,8 @@ class MapEditorWindow(tk.Toplevel):
     ) -> None:
         super().__init__(master)
         self.title("MPC XPJ Builder — карта семплов")
-        self.geometry("1080x720")
-        self.minsize(860, 600)
+        self.geometry("1120x760")
+        self.minsize(900, 620)
         self.transient(master.winfo_toplevel())
         self.samples_provider = samples_provider
         self.template_provider = template_provider
@@ -66,7 +66,7 @@ class MapEditorWindow(tk.Toplevel):
         )
         ttk.Label(
             top,
-            text="Доступны только пады с MIDI note 35–51: A1–A16 и H16.",
+            text="Все 128 падов доступны для загрузки семплов; MIDI-sequence может играть любые ноты при --extended-notes.",
         ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 0))
 
         paned = ttk.Panedwindow(self, orient="horizontal")
@@ -86,7 +86,7 @@ class MapEditorWindow(tk.Toplevel):
         self.tree.heading("status", text="Назначение")
         self.tree.column("file", width=260, stretch=True)
         self.tree.column("info", width=190, stretch=False)
-        self.tree.column("status", width=130, stretch=False)
+        self.tree.column("status", width=150, stretch=False)
         self.tree.grid(row=0, column=0, sticky="nsew")
         scroll = ttk.Scrollbar(left, orient="vertical", command=self.tree.yview)
         scroll.grid(row=0, column=1, sticky="ns")
@@ -111,7 +111,7 @@ class MapEditorWindow(tk.Toplevel):
             state="readonly",
         )
         bank.pack(side="left", padx=6)
-        bank.bind("<<ComboboxSelected>>", lambda _event: self._refresh_pad_grid())
+        bank.bind("<<ComboboxSelected>>", lambda _event: self._bank_changed())
 
         grid = ttk.Frame(right)
         grid.grid(row=1, column=0, sticky="nsew")
@@ -189,14 +189,17 @@ class MapEditorWindow(tk.Toplevel):
         ttk.Button(bottom, text="Автоназначить", command=self._auto_assign).pack(
             side="left"
         )
-        ttk.Button(bottom, text="Загрузить map.json", command=self._load_map).pack(
+        ttk.Button(bottom, text="Заполнить свободные", command=self._fill_free).pack(
             side="left", padx=6
         )
-        ttk.Button(bottom, text="Сохранить map.json", command=self._save_map).pack(
+        ttk.Button(bottom, text="Загрузить map.json", command=self._load_map).pack(
             side="left"
         )
-        ttk.Button(bottom, text="Сохранить и применить", command=self._save_and_apply).pack(
+        ttk.Button(bottom, text="Сохранить map.json", command=self._save_map).pack(
             side="left", padx=6
+        )
+        ttk.Button(bottom, text="Сохранить и применить", command=self._save_and_apply).pack(
+            side="left"
         )
         ttk.Button(bottom, text="Закрыть", command=self.destroy).pack(side="right")
         ttk.Label(bottom, textvariable=self.status_var).pack(
@@ -250,10 +253,11 @@ class MapEditorWindow(tk.Toplevel):
 
     def _assignment_by_file(self) -> dict[str, list[str]]:
         result: dict[str, list[str]] = {}
-        for note, assignment in self.assignments.items():
-            pad = self.note_to_pad.get(note)
-            label = kit_map.bank_pad_label(pad) if pad is not None else "?"
-            result.setdefault(assignment.file, []).append(f"{label} / {note}")
+        for pad_index, assignment in self.assignments.items():
+            label = kit_map.bank_pad_label(pad_index)
+            note = self.pad_to_note.get(pad_index)
+            suffix = f" / {note}" if note is not None else ""
+            result.setdefault(assignment.file, []).append(f"{label}{suffix}")
         return result
 
     def _refresh_tree(self) -> None:
@@ -271,6 +275,13 @@ class MapEditorWindow(tk.Toplevel):
             )
         if selected_id and self.tree.exists(selected_id):
             self.tree.selection_set(selected_id)
+
+    def _bank_changed(self) -> None:
+        bank = self.bank_var.get().strip().upper()
+        if bank in kit_map.BANK_NAMES:
+            self.selected_pad = kit_map.BANK_NAMES.index(bank) * kit_map.PADS_PER_BANK
+        self._refresh_pad_grid()
+        self._refresh_details()
 
     def _select_bank_pad(self, pad_number: int) -> None:
         bank = self.bank_var.get().strip().upper() or "A"
@@ -292,28 +303,18 @@ class MapEditorWindow(tk.Toplevel):
             pad_index = bank_index * kit_map.PADS_PER_BANK + pad_number - 1
             note = self.pad_to_note.get(pad_index)
             label = f"{bank}{pad_number}"
-            if note is None:
-                button.configure(
-                    text=f"{label}\n—",
-                    state="disabled",
-                    relief="ridge",
-                    bg=self.cget("bg"),
-                )
-                continue
-            assignment = self.assignments.get(note)
-            if assignment is None:
-                sample = "—"
-            else:
-                sample = Path(assignment.file).stem[:14]
+            assignment = self.assignments.get(pad_index)
+            sample = Path(assignment.file).stem[:14] if assignment else "—"
+            note_text = f"note {note}" if note is not None else "no note"
             button.configure(
-                text=f"{label}\nnote {note}\n{sample}",
+                text=f"{label}\n{note_text}\n{sample}",
                 state="normal",
                 relief="sunken" if self.selected_pad == pad_index else "ridge",
                 bg="#dbeafe" if self.selected_pad == pad_index else "SystemButtonFace",
             )
 
     def _refresh_details(self) -> None:
-        if self.selected_pad is None or self.selected_pad not in self.pad_to_note:
+        if self.selected_pad is None:
             self.pad_label_var.set("—")
             self.note_var.set("—")
             self.file_var.set("—")
@@ -322,11 +323,11 @@ class MapEditorWindow(tk.Toplevel):
             self.remove_button.configure(state="disabled")
             return
 
-        note = self.pad_to_note[self.selected_pad]
-        label = kit_map.bank_pad_label(self.selected_pad)
-        assignment = self.assignments.get(note)
-        self.pad_label_var.set(label)
-        self.note_var.set(str(note))
+        pad_index = self.selected_pad
+        note = self.pad_to_note.get(pad_index)
+        assignment = self.assignments.get(pad_index)
+        self.pad_label_var.set(kit_map.bank_pad_label(pad_index))
+        self.note_var.set("—" if note is None else str(note))
         if assignment is None:
             self.file_var.set("—")
             self.gain_var.set("1.0")
@@ -365,8 +366,8 @@ class MapEditorWindow(tk.Toplevel):
         return gain, pan, tune, bool(self.loop_var.get())
 
     def _assign_selected_wav(self) -> None:
-        if self.selected_pad is None or self.selected_pad not in self.pad_to_note:
-            messagebox.showinfo("Pad", "Сначала выберите доступный pad.", parent=self)
+        if self.selected_pad is None:
+            messagebox.showinfo("Pad", "Сначала выберите pad.", parent=self)
             return
         selection = self.tree.selection()
         if not selection:
@@ -377,9 +378,8 @@ class MapEditorWindow(tk.Toplevel):
         if params is None:
             return
         gain, pan, tune, loop = params
-        note = self.pad_to_note[self.selected_pad]
-        self.assignments[note] = kit_map.PadAssignment(
-            note=note,
+        self.assignments[self.selected_pad] = kit_map.PadAssignment(
+            pad_index=self.selected_pad,
             file=relative,
             gain=gain,
             pan=pan,
@@ -389,21 +389,22 @@ class MapEditorWindow(tk.Toplevel):
         self._refresh_tree()
         self._refresh_pad_grid()
         self._refresh_details()
-        self.status_var.set(f"Назначено: {relative} → {kit_map.bank_pad_label(self.selected_pad)}")
+        self.status_var.set(
+            f"Назначено: {relative} → {kit_map.bank_pad_label(self.selected_pad)}"
+        )
 
     def _update_params(self) -> None:
-        if self.selected_pad is None or self.selected_pad not in self.pad_to_note:
+        if self.selected_pad is None:
             return
-        note = self.pad_to_note[self.selected_pad]
-        existing = self.assignments.get(note)
+        existing = self.assignments.get(self.selected_pad)
         if existing is None:
             return
         params = self._read_params()
         if params is None:
             return
         gain, pan, tune, loop = params
-        self.assignments[note] = kit_map.PadAssignment(
-            note=note,
+        self.assignments[self.selected_pad] = kit_map.PadAssignment(
+            pad_index=self.selected_pad,
             file=existing.file,
             gain=gain,
             pan=pan,
@@ -416,10 +417,9 @@ class MapEditorWindow(tk.Toplevel):
         self.status_var.set("Параметры обновлены.")
 
     def _remove_assignment(self) -> None:
-        if self.selected_pad is None or self.selected_pad not in self.pad_to_note:
+        if self.selected_pad is None:
             return
-        note = self.pad_to_note[self.selected_pad]
-        if self.assignments.pop(note, None) is not None:
+        if self.assignments.pop(self.selected_pad, None) is not None:
             self._refresh_tree()
             self._refresh_pad_grid()
             self._refresh_details()
@@ -448,6 +448,34 @@ class MapEditorWindow(tk.Toplevel):
         self._refresh_details()
         self.status_var.set(f"Автоназначено: {count}")
 
+    def _fill_free(self) -> None:
+        before = len(self.assignments)
+        result = kit_map.auto_assign(
+            self.items,
+            self.assignments,
+            self.note_to_pad,
+            fill_free=True,
+        )
+        count = len(result) - before
+        if count <= 0:
+            messagebox.showinfo(
+                "Свободные пады",
+                "Свободных падов или семплов не осталось.",
+                parent=self,
+            )
+            return
+        if not messagebox.askyesno(
+            "Свободные пады",
+            f"Занять {count} свободных падов оставшимися WAV?",
+            parent=self,
+        ):
+            return
+        self.assignments = result
+        self._refresh_tree()
+        self._refresh_pad_grid()
+        self._refresh_details()
+        self.status_var.set(f"Занято падов: {count}")
+
     def _load_map(self) -> None:
         folder = self._samples_dir()
         initial = str(folder) if folder is not None else str(Path.cwd())
@@ -459,7 +487,9 @@ class MapEditorWindow(tk.Toplevel):
         if not path:
             return
         try:
-            self.assignments = kit_map.load_kit_map(Path(path))
+            self.assignments = kit_map.load_kit_map(
+                Path(path), self.note_to_pad
+            )
         except Exception as exc:
             messagebox.showerror("Карта", str(exc), parent=self)
             return

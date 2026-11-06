@@ -26,7 +26,13 @@ from pathlib import Path
 from typing import Any
 
 from errors import ValidationError
-from validators import MAX_DRUM_NOTE, MIN_DRUM_NOTE
+from pads import TOTAL_PADS, parse_pad
+from validators import (
+    MAX_DRUM_NOTE,
+    MAX_EXTENDED_NOTE,
+    MIN_DRUM_NOTE,
+    MIN_EXTENDED_NOTE,
+)
 from wav_pool import PoolSample, WavPool, build_wav_pool, scan_wav_files
 
 
@@ -49,7 +55,8 @@ class MapEntry:
 
     label: str
     file: str
-    note: int
+    note: int | None = None
+    pad_index: int | None = None
     gain: float | None = None
     pan: float | None = None
     tune: float | None = None
@@ -57,7 +64,7 @@ class MapEntry:
     source: Path | None = None
 
 
-_ALLOWED_KEYS = {"file", "note", "gain", "pan", "tune", "loop"}
+_ALLOWED_KEYS = {"file", "note", "pad", "gain", "pan", "tune", "loop"}
 
 
 def _number(
@@ -79,7 +86,12 @@ def _number(
     return number
 
 
-def _entry(label: str, raw: Any) -> MapEntry:
+def _entry(
+    label: str,
+    raw: Any,
+    *,
+    allow_extended_notes: bool,
+) -> MapEntry:
     if not isinstance(raw, dict):
         raise ValidationError(f"Запись {label!r} в карте должна быть объектом.")
     unknown = set(raw) - _ALLOWED_KEYS
@@ -90,14 +102,40 @@ def _entry(label: str, raw: Any) -> MapEntry:
     file_value = raw.get("file")
     if not isinstance(file_value, str) or not file_value.strip():
         raise ValidationError(f"В записи {label!r} не задан file.")
-    note_value = raw.get("note")
-    if isinstance(note_value, bool) or not isinstance(note_value, int):
-        raise ValidationError(f"В записи {label!r} note должен быть целым числом.")
-    if not MIN_DRUM_NOTE <= note_value <= MAX_DRUM_NOTE:
-        raise ValidationError(
-            f"В записи {label!r} note={note_value}; "
-            f"допустимо {MIN_DRUM_NOTE}..{MAX_DRUM_NOTE}."
-        )
+
+    note_value: int | None = None
+    if "note" in raw:
+        if isinstance(raw["note"], bool) or not isinstance(raw["note"], int):
+            raise ValidationError(f"В записи {label!r} note должен быть целым числом.")
+        note_value = raw["note"]
+        if not MIN_EXTENDED_NOTE <= note_value <= MAX_EXTENDED_NOTE:
+            raise ValidationError(
+                f"В записи {label!r} note={note_value}; допустимо 0..127."
+            )
+        if (
+            not allow_extended_notes
+            and not MIN_DRUM_NOTE <= note_value <= MAX_DRUM_NOTE
+            and "pad" not in raw
+        ):
+            raise ValidationError(
+                f"В записи {label!r} note={note_value}; "
+                f"без --extended-notes допустимо {MIN_DRUM_NOTE}..{MAX_DRUM_NOTE}."
+            )
+
+    pad_index: int | None = None
+    if "pad" in raw:
+        pad_value = raw["pad"]
+        if not isinstance(pad_value, str):
+            raise ValidationError(f"В записи {label!r} pad должен быть строкой A1..H16.")
+        try:
+            pad_index = parse_pad(pad_value)
+        except (ValueError, TypeError) as exc:
+            raise ValidationError(
+                f"В записи {label!r} некорректный pad: {pad_value!r}."
+            ) from exc
+
+    if note_value is None and pad_index is None:
+        raise ValidationError(f"В записи {label!r} нужен note или pad.")
 
     gain = None if "gain" not in raw else _number(
         raw["gain"], f"{label}.gain", minimum=0.0, maximum=1.0
@@ -116,6 +154,7 @@ def _entry(label: str, raw: Any) -> MapEntry:
         label=label,
         file=file_value.strip(),
         note=note_value,
+        pad_index=pad_index,
         gain=gain,
         pan=pan,
         tune=tune,
@@ -123,7 +162,11 @@ def _entry(label: str, raw: Any) -> MapEntry:
     )
 
 
-def load_sample_map(path: Path) -> tuple[MapEntry, ...]:
+def load_sample_map(
+    path: Path,
+    *,
+    allow_extended_notes: bool = False,
+) -> tuple[MapEntry, ...]:
     """Прочитать и провалидировать JSON-карту."""
     if not path.is_file():
         raise ValidationError(f"Файл карты не найден: {path}")
@@ -140,20 +183,33 @@ def load_sample_map(path: Path) -> tuple[MapEntry, ...]:
         if not isinstance(raw_entries, list):
             raise ValidationError("Ключ samples в карте должен быть массивом.")
         entries = [
-            _entry(f"samples[{index}]", raw)
+            _entry(
+                f"samples[{index}]",
+                raw,
+                allow_extended_notes=allow_extended_notes,
+            )
             for index, raw in enumerate(raw_entries)
         ]
     else:
-        entries = [_entry(label, raw) for label, raw in payload.items()]
+        entries = [
+            _entry(label, raw, allow_extended_notes=allow_extended_notes)
+            for label, raw in payload.items()
+        ]
 
     if not entries:
         raise ValidationError("Карта семплов пуста.")
 
     seen_notes: set[int] = set()
+    seen_pads: set[int] = set()
     for entry in entries:
-        if entry.note in seen_notes:
-            raise ValidationError(f"MIDI note {entry.note} указан в карте дважды.")
-        seen_notes.add(entry.note)
+        if entry.note is not None:
+            if entry.note in seen_notes:
+                raise ValidationError(f"MIDI note {entry.note} указан в карте дважды.")
+            seen_notes.add(entry.note)
+        if entry.pad_index is not None:
+            if entry.pad_index in seen_pads:
+                raise ValidationError(f"Pad {entry.pad_index} указан в карте дважды.")
+            seen_pads.add(entry.pad_index)
     return tuple(entries)
 
 
@@ -207,9 +263,14 @@ def prepare_mapped_pool(
     map_path: Path,
     folder: Path,
     note_to_pad: dict[int, int],
+    *,
+    allow_extended_notes: bool = False,
 ) -> tuple[WavPool, tuple[PadBinding, ...]]:
     """Разрешить карту, проверить WAV и построить bindings."""
-    entries = _resolve_sources(load_sample_map(map_path), folder)
+    entries = _resolve_sources(
+        load_sample_map(map_path, allow_extended_notes=allow_extended_notes),
+        folder,
+    )
     selected = {
         entry.source.resolve()
         for entry in entries
@@ -217,6 +278,7 @@ def prepare_mapped_pool(
     }
     pool = build_wav_pool(folder, selected=selected)
     by_source = {sample.source.resolve(): sample for sample in pool.samples}
+    pad_to_note = {pad: note for note, pad in note_to_pad.items()}
 
     bindings: list[PadBinding] = []
     used_pads: set[int] = set()
@@ -227,21 +289,40 @@ def prepare_mapped_pool(
         sample = by_source.get(source.resolve())
         if sample is None:
             raise ValidationError(f"Семпл не попал в пул: {source}.")
-        pad_index = note_to_pad.get(entry.note)
-        if pad_index is None:
-            raise ValidationError(
-                f"В эталонном .xpj нет pad для MIDI note {entry.note}."
-            )
+
+        if entry.pad_index is not None:
+            pad_index = entry.pad_index
+            if not 0 <= pad_index < TOTAL_PADS:
+                raise ValidationError(f"Некорректный pad index: {pad_index}.")
+            note = pad_to_note.get(pad_index)
+            if entry.note is not None and note != entry.note:
+                raise ValidationError(
+                    f"В записи {entry.label!r} note={entry.note} не соответствует "
+                    f"pad {pad_index}."
+                )
+        else:
+            if entry.note is None:
+                raise ValidationError(f"В записи {entry.label!r} нужен note или pad.")
+            note = entry.note
+            if not allow_extended_notes and not MIN_DRUM_NOTE <= note <= MAX_DRUM_NOTE:
+                raise ValidationError(
+                    f"В записи {entry.label!r} note={note}; без --extended-notes "
+                    f"допустимо {MIN_DRUM_NOTE}..{MAX_DRUM_NOTE}."
+                )
+            pad_index = note_to_pad.get(note)
+            if pad_index is None:
+                raise ValidationError(
+                    f"В эталонном .xpj нет pad для MIDI note {note}."
+                )
+
         if pad_index in used_pads:
-            raise ValidationError(
-                f"MIDI note {entry.note} и другая запись ведут на pad {pad_index}."
-            )
+            raise ValidationError(f"Pad {pad_index} указан в карте дважды.")
         used_pads.add(pad_index)
         bindings.append(
             PadBinding(
                 sample=sample,
                 pad_index=pad_index,
-                midi_note=entry.note,
+                midi_note=note,
                 gain=entry.gain,
                 pan=entry.pan,
                 tune=entry.tune,

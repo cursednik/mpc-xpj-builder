@@ -6,4 +6,5 @@ build/
 dist/
 *.spec
 *.egg-info/
+Wav2Test/
 
