@@ -319,6 +319,15 @@ python main.py --batch "C:\MPC Projects\batch.json" --verbose
 - `loadImpl` встречается как `0`, так и `1`;
 - порядок клипов в строке сохраняется из эталона.
 
+Loop-калибровка по пересохранённому MPC Sample проекту:
+
+- loop включается через `instrument.triggerMode = 3`;
+- `layer.loop` остаётся `false`;
+- `layer.loopMode = 1`;
+- `layer.layerLoopModeOverridesSliceLoopMode = true`;
+- `sliceInfo.LoopMode = 1`;
+- `sliceInfo.LoopCrossfadeLength = -1`.
+
 ## Hardware test kit
 
 Сгенерировать набор проектов для ручной проверки на MPC Sample:

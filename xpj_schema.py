@@ -506,7 +506,11 @@ def _assign_layer(layer: dict[str, Any], binding: PadBinding) -> None:
     layer["sampleEnd"] = 0
     layer["sliceIndex"] = 129
     loop_enabled = bool(binding.loop) if binding.loop is not None else False
-    layer["loop"] = loop_enabled
+    # Калибровка по пересохранённому MPC Sample проекту:
+    # loop включается через instrument.triggerMode = 3, а layer.loop остаётся
+    # false. Сочетание loop=true + triggerMode=0 не активировало loop при
+    # загрузке, хотя UI показывал его включённым.
+    layer["loop"] = False
     layer["loopMode"] = 1 if loop_enabled else 0
     layer["layerLoopModeOverridesSliceLoopMode"] = loop_enabled
 
@@ -539,6 +543,7 @@ def _assign_layer(layer: dict[str, Any], binding: PadBinding) -> None:
     slice_info["End"] = max(0, sample.info.frames - 1)
     slice_info["LoopStart"] = 0
     slice_info["LoopMode"] = 1 if loop_enabled else 0
+    slice_info["LoopCrossfadeLength"] = -1 if loop_enabled else 0
     if loop_enabled:
         layer["loopStart"] = 0
         layer["loopEnd"] = max(0, sample.info.frames - 1)
@@ -811,6 +816,10 @@ def build_from_template(
         else:
             instrument["coarseTune"] = 0
             instrument["fineTune"] = 0
+        if binding.loop is True:
+            instrument["triggerMode"] = 3
+        elif binding.loop is False:
+            instrument["triggerMode"] = 0
         _assign_layer(layer, binding)
 
     sample_prototype = _find_sample_entry_prototype(data)
