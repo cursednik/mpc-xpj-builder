@@ -118,6 +118,10 @@ def _enable_windows_drop(
         wintypes.UINT,
     ]
     shell32.DragQueryFileW.restype = wintypes.UINT
+    shell32.DragFinish.argtypes = [wintypes.HANDLE]
+    shell32.DragFinish.restype = None
+    shell32.DragAcceptFiles.argtypes = [wintypes.HWND, wintypes.BOOL]
+    shell32.DragAcceptFiles.restype = None
 
     def wndproc(hwnd_value, message, wparam, lparam):
         if message == _WM_DROPFILES:

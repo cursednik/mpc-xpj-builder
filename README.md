@@ -104,7 +104,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v0.10.0-win64.zip
+dist\mpc-xpj-builder-v0.10.1-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -116,7 +116,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v0.10.0-setup.exe
+dist\mpc-xpj-builder-v0.10.1-setup.exe
 ```
 
 ## Как получить эталон
@@ -393,8 +393,8 @@ python -m unittest discover -s tests -v
 running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
 экспорт с mapped-семплами, `sampleEnd`, `sliceInfo.End`, gain/pan/tune/loop,
 GUI-аргументы, project browser, drag-and-drop routing, pad-based карта,
-extended-ноты, автоназначение, настройки GUI, recent projects и игнорирование
-лишних WAV. Всего 51 тест.
+extended-ноты, автоназначение, настройки GUI, recent projects, native drag-and-drop
+и игнорирование лишних WAV. Всего 52 теста.
 
 ## Статус проверки
 
