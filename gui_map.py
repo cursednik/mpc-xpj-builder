@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Callable
 
 import kit_map
+import map_presets
+from errors import ValidationError
 
 
 class MapEditorWindow(tk.Toplevel):
@@ -21,8 +23,8 @@ class MapEditorWindow(tk.Toplevel):
     ) -> None:
         super().__init__(master)
         self.title("MPC XPJ Builder — карта семплов")
-        self.geometry("1120x760")
-        self.minsize(900, 620)
+        self.geometry("1120x800")
+        self.minsize(900, 660)
         self.transient(master.winfo_toplevel())
         self.samples_provider = samples_provider
         self.template_provider = template_provider
@@ -46,6 +48,7 @@ class MapEditorWindow(tk.Toplevel):
         self.tune_var = tk.StringVar(value="0.0")
         self.loop_var = tk.BooleanVar(value=False)
         self.status_var = tk.StringVar(value="Выберите пад и WAV.")
+        self.preset_var = tk.StringVar(value="")
 
         self._build_ui()
         self._load_note_map()
@@ -184,8 +187,29 @@ class MapEditorWindow(tk.Toplevel):
         )
         self.remove_button.pack(side="left")
 
+        preset_bar = ttk.LabelFrame(self, text="Пресеты карт", padding=(8, 6))
+        preset_bar.grid(row=2, column=0, sticky="ew", padx=10, pady=(6, 0))
+        preset_bar.columnconfigure(1, weight=1)
+        ttk.Label(preset_bar, text="Пресет:").grid(row=0, column=0, sticky="w")
+        self.preset_combo = ttk.Combobox(
+            preset_bar,
+            textvariable=self.preset_var,
+            values=self._preset_names(),
+            state="readonly",
+        )
+        self.preset_combo.grid(row=0, column=1, sticky="ew", padx=8)
+        ttk.Button(
+            preset_bar, text="Загрузить", command=self._load_preset
+        ).grid(row=0, column=2, padx=(0, 6))
+        ttk.Button(
+            preset_bar, text="Сохранить…", command=self._save_preset
+        ).grid(row=0, column=3, padx=(0, 6))
+        ttk.Button(
+            preset_bar, text="Удалить", command=self._delete_preset
+        ).grid(row=0, column=4)
+
         bottom = ttk.Frame(self, padding=(10, 8))
-        bottom.grid(row=2, column=0, sticky="ew")
+        bottom.grid(row=3, column=0, sticky="ew")
         ttk.Button(bottom, text="Автоназначить", command=self._auto_assign).pack(
             side="left"
         )
@@ -205,6 +229,89 @@ class MapEditorWindow(tk.Toplevel):
         ttk.Label(bottom, textvariable=self.status_var).pack(
             side="right", padx=(0, 12)
         )
+
+    def _preset_names(self) -> list[str]:
+        return [preset.name for preset in map_presets.list_presets()]
+
+    def _refresh_presets(self, select: str | None = None) -> None:
+        names = self._preset_names()
+        self.preset_combo.configure(values=names)
+        if select is not None:
+            self.preset_var.set(select)
+        elif self.preset_var.get() not in names:
+            self.preset_var.set("")
+
+    def _selected_preset(self) -> map_presets.MapPreset | None:
+        name = self.preset_var.get().strip()
+        if not name:
+            return None
+        for preset in map_presets.list_presets():
+            if preset.name == name:
+                return preset
+        return None
+
+    def _load_preset(self) -> None:
+        preset = self._selected_preset()
+        if preset is None:
+            messagebox.showinfo(
+                "Пресеты",
+                "Сначала выберите пресет в списке.",
+                parent=self,
+            )
+            return
+        try:
+            assignments = map_presets.load_preset(preset, self.note_to_pad)
+        except Exception as exc:
+            messagebox.showerror("Пресет", str(exc), parent=self)
+            return
+        self.assignments = assignments
+        self._refresh_tree()
+        self._refresh_pad_grid()
+        self._refresh_details()
+        self.status_var.set(f"Загружен пресет: {preset.name}")
+
+    def _save_preset(self) -> None:
+        folder_name = Path(self.samples_label.cget("text")).name
+        initial = self.preset_var.get().strip() or folder_name or "Моя карта"
+        name = simpledialog.askstring(
+            "Пресет карты",
+            "Имя пресета:",
+            initialvalue=initial,
+            parent=self,
+        )
+        if name is None:
+            return
+        try:
+            preset = map_presets.save_preset(name, self.assignments)
+        except Exception as exc:
+            messagebox.showerror("Пресет", str(exc), parent=self)
+            return
+        self._refresh_presets(preset.name)
+        self.status_var.set(f"Пресет сохранён: {preset.name}")
+
+    def _delete_preset(self) -> None:
+        preset = self._selected_preset()
+        if preset is None:
+            messagebox.showinfo(
+                "Пресеты",
+                "Сначала выберите пресет в списке.",
+                parent=self,
+            )
+            return
+        if not messagebox.askyesno(
+            "Удалить пресет",
+            f"Удалить пресет {preset.name!r}?",
+            parent=self,
+        ):
+            return
+        try:
+            map_presets.delete_preset(preset)
+        except Exception as exc:
+            messagebox.showerror("Пресет", str(exc), parent=self)
+            return
+        self._refresh_presets()
+        self.preset_var.set("")
+        self.status_var.set(f"Пресет удалён: {preset.name}")
 
     def _samples_dir(self) -> Path | None:
         raw = self.samples_provider().strip()

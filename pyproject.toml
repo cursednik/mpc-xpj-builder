@@ -48,6 +48,7 @@ py-modules = [
   "gui_projects",
   "kit_map",
   "main",
+  "map_presets",
   "midi_reader",
   "pads",
   "project_library",
