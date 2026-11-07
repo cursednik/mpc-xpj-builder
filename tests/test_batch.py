@@ -164,7 +164,10 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(len(spec.jobs), 1)
         self.assertEqual(
             spec.jobs[0].midi_files,
-            (self.root / "a.mid", self.root / "second.mid"),
+            (
+                (self.root / "a.mid").resolve(),
+                (self.root / "second.mid").resolve(),
+            ),
         )
 
     def test_save_manifest_roundtrip(self) -> None:
