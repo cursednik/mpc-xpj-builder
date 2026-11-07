@@ -104,7 +104,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v0.10.1-win64.zip
+dist\mpc-xpj-builder-v0.10.2-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -116,7 +116,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v0.10.1-setup.exe
+dist\mpc-xpj-builder-v0.10.2-setup.exe
 ```
 
 ## Как получить эталон

@@ -55,8 +55,6 @@ def _make_hdrop(paths: list[str]):
 class NativeDropTests(unittest.TestCase):
     def test_synthetic_wm_dropfiles(self) -> None:
         user32 = ctypes.windll.user32
-        user32.GetParent.argtypes = [wintypes.HWND]
-        user32.GetParent.restype = wintypes.HWND
         user32.SendMessageW.argtypes = [
             wintypes.HWND,
             wintypes.UINT,
@@ -73,7 +71,7 @@ class NativeDropTests(unittest.TestCase):
             if not enabled:
                 self.skipTest("file drop is not available")
             root.update()
-            hwnd = user32.GetParent(root.winfo_id()) or root.winfo_id()
+            hwnd = root.winfo_id()
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as handle:
                 path = Path(handle.name)
                 handle.write(b"RIFF")

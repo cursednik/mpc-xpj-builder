@@ -85,11 +85,10 @@ def _enable_windows_drop(
 
     user32 = ctypes.windll.user32
     shell32 = ctypes.windll.shell32
-    user32.GetParent.argtypes = [wintypes.HWND]
-    user32.GetParent.restype = wintypes.HWND
     root.update_idletasks()
-    child = root.winfo_id()
-    hwnd = user32.GetParent(child) or child
+    # Tk child window is the one that receives the actual drop. This mirrors
+    # the approach used by the long-standing windnd implementation.
+    hwnd = root.winfo_id()
     if not hwnd:
         return False
     state = _DropState(hwnd, callback)
@@ -135,10 +134,9 @@ def _enable_windows_drop(
                     shell32.DragQueryFileW(hdrop, index, buffer, length + 1)
                     paths.append(buffer.value)
                 shell32.DragFinish(hdrop)
-                root.after(0, lambda: callback(paths))
+                callback(paths)
             except Exception:
                 pass
-            return 0
         return user32.CallWindowProcW(
             state.old_proc,
             hwnd_value,
