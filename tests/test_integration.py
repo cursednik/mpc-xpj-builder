@@ -135,6 +135,34 @@ class IntegrationExportTests(unittest.TestCase):
             len(second["trackClipMaps"][0][0]["value"]["eventList"]["events"]), 2
         )
 
+    def test_export_without_midi(self) -> None:
+        with contextlib.redirect_stdout(io.StringIO()):
+            rc = cli.main(
+                [
+                    "--samples",
+                    str(self.samples),
+                    "--name",
+                    "No MIDI Kit",
+                    "--bpm",
+                    "120",
+                    "--output",
+                    str(self.output),
+                    "--template",
+                    str(self.template),
+                ]
+            )
+        self.assertEqual(rc, 0)
+        xpj_path = self.output / "No MIDI Kit.xpj"
+        self.assertTrue(xpj_path.is_file())
+        _, payload, _ = read_xpj(xpj_path)
+        data = payload["data"]
+        self.assertEqual(len(data["samples"]), 5)
+        self.assertEqual(len(data["sequences"]), 1)
+        sequence = data["sequences"][0]["value"]
+        self.assertEqual(sequence["name"], "No MIDI Kit")
+        events = sequence["trackClipMaps"][0][0]["value"]["eventList"]["events"]
+        self.assertEqual(events, [])
+
     def test_mapped_export(self) -> None:
         self.assertEqual(self._export(), 0)
         xpj_path = self.output / "Mapped Test.xpj"

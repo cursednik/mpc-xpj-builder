@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
 
-**v1.2.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
+**v1.3.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
 Standard MIDI File. Windows GUI, CLI и batch-режим.
 
 [Скачать](https://github.com/cursednik/mpc-xpj-builder/releases) ·
@@ -13,6 +13,7 @@ Standard MIDI File. Windows GUI, CLI и batch-режим.
 ## Возможности
 
 - GUI и CLI для Windows, без runtime-зависимостей.
+- MIDI необязателен: можно собрать kit с пустой sequence.
 - Pad-based карта на все 128 падов, банки A–H.
 - Редактор карты с автоназначением и `map.json`.
 - Прослушивание WAV прямо в редакторе карты.
@@ -78,9 +79,9 @@ mpc-xpj-builder-gui
 python gui.py
 ```
 
-GUI позволяет выбрать папку семплов, MIDI, эталонный `.xpj`, карту `--map`,
-имя/BPM/папку экспорта, посмотреть план (`--dry-run`) или создать проект.
-Сборка идёт в фоне, лог показывается в окне.
+GUI позволяет выбрать папку семплов, MIDI (необязательно), эталонный `.xpj`,
+карту `--map`, имя/BPM/папку экспорта, посмотреть план (`--dry-run`) или создать
+проект. Сборка идёт в фоне, лог показывается в окне.
 
 Кнопка **«Карта семплов…»** открывает редактор:
 
@@ -95,6 +96,7 @@ GUI позволяет выбрать папку семплов, MIDI, этал�
 - загрузка/сохранение `map.json`;
 - прослушивание WAV: выбранного в списке или назначенного на пад
   (`▶ Прослушать` / `■ Стоп`);
+- автовоспроизведение WAV при клике по файлу в списке;
 - именованные пресеты карт: сохранить, загрузить, удалить;
 - «Сохранить и применить» подставляет путь в поле `--map`.
 
@@ -149,7 +151,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v1.2.0-win64.zip
+dist\mpc-xpj-builder-v1.3.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -161,7 +163,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v1.2.0-setup.exe
+dist\mpc-xpj-builder-v1.3.0-setup.exe
 ```
 
 ## Как получить эталон
@@ -220,6 +222,9 @@ python main.py `
 ```
 
 Файлы также можно перечислить одной строкой через `;`.
+
+MIDI можно не указывать совсем — тогда создаётся kit с одной пустой sequence
+на 1 такт. Это удобно, когда нужно только загрузить набор семплов на пады.
 
 Экспорт с явной картой семплов:
 
@@ -331,6 +336,8 @@ My Kit_[ProjectData]\
 - Каждый MIDI-файл превращается в отдельную MPC sequence; `trackClipMaps`
   каждой sequence содержит одну строку с клипами всех сохранённых треков.
   Инфраструктурные треки (submix/output) из эталона сохраняются.
+- Без MIDI создаётся одна пустая sequence на 1 такт; семплы назначаются на
+  пады без MIDI-нот.
 
 ## Batch-режим `--batch`
 
@@ -456,7 +463,7 @@ running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
 GUI-аргументы, project browser, drag-and-drop routing, pad-based карта,
 extended-ноты, автоназначение, настройки GUI, recent projects, native drag-and-drop,
 пресеты карт, batch GUI, несколько sequence, прослушивание WAV и игнорирование
-лишних WAV. Всего 76 тестов.
+лишних WAV. Всего 80 тестов.
 
 ## Статус проверки
 

@@ -148,6 +148,17 @@ class BatchTests(unittest.TestCase):
             rc = cli.main(["--batch", str(manifest), "--inspect", str(self.template)])
         self.assertEqual(rc, 2)
 
+    def test_midi_optional_in_manifest(self) -> None:
+        payload = self._manifest()
+        payload["jobs"] = [
+            {"name": "No MIDI", "samples": "samples_a"}
+        ]
+        manifest = self._write_manifest(payload)
+        spec = load_batch_manifest(manifest)
+        self.assertEqual(len(spec.jobs), 1)
+        self.assertEqual(spec.jobs[0].midi_files, ())
+        self.assertIsNone(spec.jobs[0].midi)
+
     def test_midi_list_manifest(self) -> None:
         second = self.root / "second.mid"
         write_midi(second, [(0, 36, 100, 100)])

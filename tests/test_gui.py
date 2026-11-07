@@ -57,6 +57,18 @@ class GuiArgsTests(unittest.TestCase):
         self.assertIn("--extended-notes", args)
         self.assertEqual(args[args.index("--name") + 1], "Gui Kit")
 
+    def test_midi_optional(self) -> None:
+        args = self._args(midi="")
+        self.assertNotIn("--midi", args)
+
+    def test_multiple_midi_args(self) -> None:
+        midi2 = self.root / "drums2.mid"
+        midi2.write_bytes(b"MThd")
+        args = self._args(midi=f"{self.midi};{midi2}")
+        self.assertEqual(args.count("--midi"), 2)
+        self.assertIn(str(self.midi), args)
+        self.assertIn(str(midi2), args)
+
     def test_empty_name_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "имя проекта"):
             self._args(name="   ")

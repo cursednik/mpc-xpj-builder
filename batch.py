@@ -20,7 +20,7 @@ class BatchJob:
     label: str
     name: str
     samples: Path
-    midi: Path
+    midi: Path | None
     bpm: float
     output: Path
     template: Path | None
@@ -71,7 +71,9 @@ def _optional_path(
 
 
 def _resolve_midi(base: Path, raw: Any, field: str) -> tuple[Path, ...]:
-    """MIDI может быть строкой, списком или строкой с ';'."""
+    """MIDI необязателен: строка, список, ';'-строка или None."""
+    if raw is None:
+        return ()
     if isinstance(raw, str):
         values: list[Any] = [part.strip() for part in raw.split(";") if part.strip()]
     elif isinstance(raw, list):
@@ -81,7 +83,7 @@ def _resolve_midi(base: Path, raw: Any, field: str) -> tuple[Path, ...]:
             f"Поле {field} должно быть строкой или массивом строк."
         )
     if not values:
-        raise ValidationError(f"Поле {field} не содержит MIDI-файлов.")
+        return ()
     return tuple(
         _resolve(base, value, f"{field}[{index}]")
         for index, value in enumerate(values)
@@ -165,7 +167,7 @@ def load_batch_manifest(
 
         samples = _resolve(base, raw.get("samples"), f"{label}.samples")
         midi_files = _resolve_midi(base, raw.get("midi"), f"{label}.midi")
-        midi = midi_files[0]
+        midi = midi_files[0] if midi_files else None
         output = _optional_path(
             base, raw.get("output"), f"{label}.output", global_output
         )

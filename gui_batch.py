@@ -74,7 +74,7 @@ class JobDialog(tk.Toplevel):
         self._path_row(
             outer,
             2,
-            "MIDI-файлы (через ;)",
+            "MIDI-файлы (необязательно)",
             self.midi_var,
             "midi",
         )
@@ -151,9 +151,6 @@ class JobDialog(tk.Toplevel):
             return
         if not self.samples_var.get().strip():
             messagebox.showerror("Проект", "Укажите папку с WAV.", parent=self)
-            return
-        if not self.midi_var.get().strip():
-            messagebox.showerror("Проект", "Укажите MIDI-файл.", parent=self)
             return
         bpm_text = self.bpm_var.get().strip()
         if bpm_text:
@@ -473,8 +470,10 @@ class BatchWindow(tk.Toplevel):
             item: dict[str, Any] = {
                 "name": job.get("name", ""),
                 "samples": job.get("samples", ""),
-                "midi": self._midi_payload(job.get("midi", "")),
             }
+            midi_value = self._midi_payload(job.get("midi", ""))
+            if midi_value:
+                item["midi"] = midi_value
             for key in ("output", "template", "map"):
                 value = job.get(key)
                 if isinstance(value, str) and value.strip():

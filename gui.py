@@ -50,23 +50,26 @@ def build_cli_args(
 
     if not samples.strip():
         raise ValueError("Укажите папку с семплами.")
-    if not midi.strip():
-        raise ValueError("Укажите MIDI-файл.")
     if not output.strip():
         raise ValueError("Укажите папку экспорта.")
     if not template.strip():
         raise ValueError("Укажите эталонный .xpj.")
 
     samples_path = Path(samples.strip())
-    midi_path = Path(midi.strip())
+    midi_paths = [
+        Path(part.strip())
+        for part in midi.split(";")
+        if part.strip()
+    ]
     output_path = Path(output.strip())
     template_path = Path(template.strip())
     map_path = Path(sample_map.strip()) if sample_map.strip() else None
 
     if not samples_path.is_dir():
         raise ValueError("Папка с семплами не найдена.")
-    if not midi_path.is_file():
-        raise ValueError("MIDI-файл не найден.")
+    for midi_path in midi_paths:
+        if not midi_path.is_file():
+            raise ValueError(f"MIDI-файл не найден: {midi_path}")
     if not template_path.is_file():
         raise ValueError("Эталонный .xpj не найден.")
     if map_path is not None and not map_path.is_file():
@@ -75,17 +78,21 @@ def build_cli_args(
     args = [
         "--samples",
         str(samples_path),
-        "--midi",
-        str(midi_path),
-        "--name",
-        project_name,
-        "--bpm",
-        f"{bpm_value:g}",
-        "--output",
-        str(output_path),
-        "--template",
-        str(template_path),
     ]
+    for midi_path in midi_paths:
+        args.extend(["--midi", str(midi_path)])
+    args.extend(
+        [
+            "--name",
+            project_name,
+            "--bpm",
+            f"{bpm_value:g}",
+            "--output",
+            str(output_path),
+            "--template",
+            str(template_path),
+        ]
+    )
     if map_path is not None:
         args.extend(["--map", str(map_path)])
     if extended_notes:
@@ -144,7 +151,7 @@ class App:
         form.columnconfigure(1, weight=1)
 
         self._entry_row(form, 0, "Папка с WAV", self.samples_var, "dir")
-        self._entry_row(form, 1, "MIDI-файлы (через ;)", self.midi_var, "midi")
+        self._entry_row(form, 1, "MIDI-файлы (необязательно)", self.midi_var, "midi")
         self._entry_row(form, 2, "Имя проекта", self.name_var, None)
         self._entry_row(form, 3, "BPM", self.bpm_var, None)
         self._entry_row(form, 4, "Папка экспорта", self.output_var, "dir")
@@ -182,7 +189,7 @@ class App:
 
         ttk.Label(
             form,
-            text="Можно перетащить папку WAV, несколько MIDI, .xpj или map.json",
+            text="WAV-папка, MIDI (можно несколько или без них), .xpj или map.json",
             foreground="#666666",
         ).grid(row=9, column=0, columnspan=3, sticky="w", pady=(4, 0))
 

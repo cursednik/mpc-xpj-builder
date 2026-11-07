@@ -64,6 +64,7 @@ class BuildPlan:
     template_path: Path | None
     mapping_path: Path | None = None
     sequences: tuple[SequencePlan, ...] = ()
+    has_midi: bool = True
 
 
 @dataclass(frozen=True)
@@ -331,7 +332,9 @@ def sequence_timing(midi: MidiFileData) -> tuple[int, int, int, tuple[int, int]]
         )
     bar_pulses = numerator * beat_length
 
-    final_tick = max(midi.end_tick, *(note.end_tick for note in midi.notes))
+    final_tick = max(
+        [midi.end_tick, *(note.end_tick for note in midi.notes)]
+    )
     end_pulse = to_pulses(final_tick, midi.ppq, PPQ)
     bars = max(1, (end_pulse + bar_pulses - 1) // bar_pulses)
     sequence_pulses = bars * bar_pulses

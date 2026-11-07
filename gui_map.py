@@ -127,6 +127,7 @@ class MapEditorWindow(tk.Toplevel):
         self.tree.configure(yscrollcommand=scroll.set)
         self.tree.bind("<<TreeviewSelect>>", lambda _event: self._refresh_details())
         self.tree.bind("<Double-1>", lambda _event: self._assign_selected_wav())
+        self.tree.bind("<ButtonRelease-1>", self._on_tree_click)
         paned.add(left, weight=1)
 
         right = ttk.Frame(paned)
@@ -509,6 +510,15 @@ class MapEditorWindow(tk.Toplevel):
             self.update_button.configure(state="normal")
             self.remove_button.configure(state="normal")
         self.assign_button.configure(state="normal")
+
+    def _on_tree_click(self, event: tk.Event) -> None:
+        row = self.tree.identify_row(event.y)
+        if not row:
+            return
+        if self.tree.selection() != (row,):
+            self.tree.selection_set(row)
+        self._refresh_details()
+        self._play_preview()
 
     def _play_preview(self) -> None:
         selection = self.tree.selection()
