@@ -181,8 +181,13 @@ def disable_file_drop(root) -> None:
     if state is None:
         return
     try:
+        from ctypes import wintypes
+
         user32 = ctypes.windll.user32
-        user32.DragAcceptFiles(state.hwnd, False)
+        shell32 = ctypes.windll.shell32
+        shell32.DragAcceptFiles.argtypes = [wintypes.HWND, wintypes.BOOL]
+        shell32.DragAcceptFiles.restype = None
+        shell32.DragAcceptFiles(state.hwnd, False)
         user32.SetWindowLongPtrW(
             state.hwnd,
             _GWLP_WNDPROC,

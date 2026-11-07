@@ -8,7 +8,27 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
+from dnd import disable_file_drop, enable_file_drop
 from project_library import ProjectInfo, scan_projects
+
+
+def route_project_drop(
+    paths: list[str] | tuple[str, ...],
+) -> tuple[Path | None, Path | None]:
+    """Выбрать папку и/или .xpj из упавших путей."""
+    folder: Path | None = None
+    project: Path | None = None
+    for raw in paths:
+        path = Path(raw)
+        if path.is_dir() and folder is None:
+            folder = path
+        elif path.suffix.lower() == ".xpj" and project is None:
+            project = path
+    if folder is not None:
+        return folder, None
+    if project is not None:
+        return project.parent, project
+    return None, None
 
 
 class ProjectBrowserWindow(tk.Toplevel):
@@ -32,6 +52,35 @@ class ProjectBrowserWindow(tk.Toplevel):
 
         self._build_ui()
         self.refresh()
+        enable_file_drop(self, self._handle_drop)
+
+    def destroy(self) -> None:
+        disable_file_drop(self)
+        super().destroy()
+
+    def _handle_drop(self, paths: list[str]) -> None:
+        folder, project = route_project_drop(paths)
+        if folder is None:
+            self.status_var.set("Перетащите папку с проектами или .xpj.")
+            return
+        self.folder_var.set(str(folder))
+        self.refresh()
+        if project is None:
+            self.status_var.set(f"Папка: {folder}")
+            return
+
+        for index, item in enumerate(self.items):
+            try:
+                matches = item.path.resolve() == project.resolve()
+            except OSError:
+                matches = item.path == project
+            if matches:
+                self.tree.selection_set(str(index))
+                self.tree.focus(str(index))
+                self.tree.see(str(index))
+                self._selection_changed()
+                return
+        self.status_var.set(f"Проект не найден в папке: {project.name}")
 
     def _build_ui(self) -> None:
         self.columnconfigure(0, weight=1)
@@ -100,6 +149,11 @@ class ProjectBrowserWindow(tk.Toplevel):
             bottom, text="Сделать эталоном", command=self._use_as_template
         )
         self.template_button.pack(side="left", padx=6)
+        ttk.Label(
+            bottom,
+            text="Можно перетащить папку или .xpj",
+            foreground="#666666",
+        ).pack(side="left", padx=12)
         ttk.Button(bottom, text="Закрыть", command=self.destroy).pack(side="right")
         ttk.Label(bottom, textvariable=self.status_var).pack(
             side="right", padx=(0, 12)

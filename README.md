@@ -109,7 +109,9 @@ GUI сохраняет последние папки, MIDI, template, map, им�
 ![Браузер проектов](docs/images/gui-projects.png)
 
 В таблице показаны имя, BPM, число семплов, такты, число треков, дата изменения.
-Оттуда можно открыть папку проекта или назначить проект эталоном.
+Оттуда можно открыть папку проекта или назначить проект эталоном. В окно
+браузера можно перетащить папку с проектами или `.xpj`: папка откроется, а
+перетащенный проект будет выбран в таблице.
 
 Кнопка **«Batch…»** открывает окно batch-сборки: общие `template`, `output` и
 BPM, таблица проектов, добавление/изменение/удаление job, `map` и
@@ -445,8 +447,9 @@ python -m unittest discover -s tests -v
 running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
 экспорт с mapped-семплами, `sampleEnd`, `sliceInfo.End`, gain/pan/tune/loop,
 GUI-аргументы, project browser, drag-and-drop routing, pad-based карта,
-extended-ноты, автоназначение, настройки GUI, recent projects, native drag-and-drop
-и игнорирование лишних WAV. Всего 52 теста.
+extended-ноты, автоназначение, настройки GUI, recent projects, native drag-and-drop,
+пресеты карт, batch GUI, несколько sequence и игнорирование лишних WAV.
+Всего 68 тестов.
 
 ## Статус проверки
 

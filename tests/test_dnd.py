@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from dnd import route_dropped
+from gui_projects import route_project_drop
 
 
 class DropRouteTests(unittest.TestCase):
@@ -57,6 +58,26 @@ class DropRouteTests(unittest.TestCase):
         result = route_dropped([str(self.midi), str(midi2)])
         self.assertEqual(result.midi, self.midi)
         self.assertEqual(result.midi_files, (self.midi, midi2))
+
+    def test_project_browser_drop_folder(self) -> None:
+        folder, project = route_project_drop([str(self.samples)])
+        self.assertEqual(folder, self.samples)
+        self.assertIsNone(project)
+
+    def test_project_browser_drop_xpj(self) -> None:
+        folder, project = route_project_drop([str(self.template)])
+        self.assertEqual(folder, self.root)
+        self.assertEqual(project, self.template)
+
+    def test_project_browser_drop_prefers_folder(self) -> None:
+        folder, project = route_project_drop(
+            [str(self.template), str(self.samples)]
+        )
+        self.assertEqual(folder, self.samples)
+        self.assertIsNone(project)
+
+    def test_project_browser_drop_unsupported(self) -> None:
+        self.assertEqual(route_project_drop([str(self.wav)]), (None, None))
 
 
 if __name__ == "__main__":
