@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
 
-**v1.0.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
+**v1.1.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
 Standard MIDI File. Windows GUI, CLI и batch-режим.
 
 [Скачать](https://github.com/cursednik/mpc-xpj-builder/releases) ·
@@ -113,10 +113,14 @@ GUI сохраняет последние папки, MIDI, template, map, им�
 браузера можно перетащить папку с проектами или `.xpj`: папка откроется, а
 перетащенный проект будет выбран в таблице.
 
-Кнопка **«Batch…»** открывает окно batch-сборки: общие `template`, `output` и
-BPM, таблица проектов, добавление/изменение/удаление job, `map` и
-`extended_notes`, проверка (`--dry-run`) и запуск всего batch. Манифест можно
-загрузить из `.json` и сохранить обратно.
+Кнопка **«Batch…»** открывает окно batch-сборки:
+
+![Batch-сборка](docs/images/gui-batch.png)
+
+В окне: общие `template`, `output` и BPM, таблица проектов,
+добавление/изменение/удаление job, `map` и `extended_notes`, проверка
+(`--dry-run`) и запуск всего batch. Манифест можно загрузить из `.json` и
+сохранить обратно.
 
 В главное окно можно перетащить:
 
@@ -142,7 +146,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v1.0.0-win64.zip
+dist\mpc-xpj-builder-v1.1.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -154,7 +158,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v1.0.0-setup.exe
+dist\mpc-xpj-builder-v1.1.0-setup.exe
 ```
 
 ## Как получить эталон

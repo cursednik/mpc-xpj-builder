@@ -198,8 +198,8 @@ class BatchWindow(tk.Toplevel):
     ) -> None:
         super().__init__(master)
         self.title("MPC XPJ Builder — batch")
-        self.geometry("1060x760")
-        self.minsize(860, 620)
+        self.geometry("1120x760")
+        self.minsize(900, 620)
 
         self.manifest_path: Path | None = None
         self.jobs: list[dict[str, Any]] = []
@@ -266,8 +266,8 @@ class BatchWindow(tk.Toplevel):
         }
         widths = {
             "name": 150,
-            "samples": 250,
-            "midi": 220,
+            "samples": 320,
+            "midi": 280,
             "map": 170,
             "bpm": 55,
             "extended": 50,
@@ -279,10 +279,15 @@ class BatchWindow(tk.Toplevel):
         scroll = ttk.Scrollbar(jobs_frame, orient="vertical", command=self.tree.yview)
         scroll.grid(row=0, column=1, sticky="ns")
         self.tree.configure(yscrollcommand=scroll.set)
+        xscroll = ttk.Scrollbar(
+            jobs_frame, orient="horizontal", command=self.tree.xview
+        )
+        xscroll.grid(row=1, column=0, sticky="ew")
+        self.tree.configure(xscrollcommand=xscroll.set)
         self.tree.bind("<Double-1>", lambda _event: self._edit_job())
 
         job_buttons = ttk.Frame(jobs_frame)
-        job_buttons.grid(row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        job_buttons.grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
         self.add_button = ttk.Button(
             job_buttons, text="Добавить…", command=self._add_job
         )

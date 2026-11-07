@@ -1,6 +1,6 @@
 # Руководство пользователя
 
-**mpc-xpj-builder 1.0.0** — сборка проектов `.xpj` для **Akai MPC Sample** из
+**mpc-xpj-builder 1.1.0** — сборка проектов `.xpj` для **Akai MPC Sample** из
 папки WAV и одного Standard MIDI File.
 
 Инструмент не пишет формат `.xpj` с нуля: он клонирует эталонный проект,
@@ -13,7 +13,7 @@
 
 ### Вариант A. Установщик
 
-1. Скачайте `mpc-xpj-builder-v1.0.0-setup.exe` со страницы
+1. Скачайте `mpc-xpj-builder-v1.1.0-setup.exe` со страницы
    [Releases](https://github.com/cursednik/mpc-xpj-builder/releases).
 2. Запустите установщик.
 3. Windows может показать предупреждение SmartScreen, потому что установщик не
@@ -24,7 +24,7 @@
 
 ### Вариант B. Портативная версия
 
-1. Скачайте `mpc-xpj-builder-v1.0.0-win64.zip`.
+1. Скачайте `mpc-xpj-builder-v1.1.0-win64.zip`.
 2. Распакуйте архив в любую папку.
 3. Запустите `mpc-xpj-builder-gui.exe`.
 
@@ -215,6 +215,8 @@ Batch нужен, чтобы собрать несколько проектов 
 ### Batch в GUI
 
 Кнопка **«Batch…»** открывает отдельное окно:
+
+![Batch-сборка](images/gui-batch.png)
 
 - общие поля: эталонный `.xpj`, папка экспорта, BPM по умолчанию;
 - таблица проектов: имя, WAV, MIDI, карта, BPM, extended notes;
