@@ -5,8 +5,9 @@ from __future__ import annotations
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
-from typing import Callable
+from typing import Callable, Sequence
 
+import audio_preview
 import kit_map
 import map_presets
 from errors import ValidationError
@@ -17,6 +18,27 @@ PAD_GRID_ROWS = 4
 def pad_number_at(row: int, column: int) -> int:
     """Номер пада для позиции сетки: A1 внизу слева, A16 вверху справа."""
     return (PAD_GRID_ROWS - 1 - row) * 4 + column + 1
+
+
+def preview_source(
+    items: Sequence[kit_map.WavItem],
+    assignments: dict[int, kit_map.PadAssignment],
+    selected_relative: str | None,
+    selected_pad: int | None,
+    folder: Path | None,
+) -> tuple[Path | None, str | None]:
+    """Выбрать WAV для прослушивания: сначала выделение в списке, потом пад."""
+    if selected_relative:
+        for item in items:
+            if item.relative == selected_relative:
+                return item.path, item.relative
+    if selected_pad is not None and folder is not None:
+        assignment = assignments.get(selected_pad)
+        if assignment is not None:
+            path = folder / assignment.file
+            if path.is_file():
+                return path, assignment.file
+    return None, None
 
 
 class MapEditorWindow(tk.Toplevel):
@@ -56,6 +78,8 @@ class MapEditorWindow(tk.Toplevel):
         self.loop_var = tk.BooleanVar(value=False)
         self.status_var = tk.StringVar(value="Выберите пад и WAV.")
         self.preset_var = tk.StringVar(value="")
+        self.preview = audio_preview.AudioPreview()
+        self._preview_after: str | None = None
 
         self._build_ui()
         self._load_note_map()
@@ -190,14 +214,27 @@ class MapEditorWindow(tk.Toplevel):
             buttons, text="Назначить выбранный WAV", command=self._assign_selected_wav
         )
         self.assign_button.pack(side="left")
+        self.play_button = ttk.Button(
+            buttons, text="▶ Прослушать", command=self._play_preview
+        )
+        self.play_button.pack(side="left", padx=(12, 0))
+        self.stop_button = ttk.Button(
+            buttons, text="■ Стоп", command=self._stop_preview
+        )
+        self.stop_button.pack(side="left", padx=(6, 0))
+
+        edit_buttons = ttk.Frame(detail)
+        edit_buttons.grid(
+            row=6, column=0, columnspan=4, sticky="ew", pady=(6, 0)
+        )
         self.update_button = ttk.Button(
-            buttons, text="Обновить параметры", command=self._update_params
+            edit_buttons, text="Обновить параметры", command=self._update_params
         )
-        self.update_button.pack(side="left", padx=6)
+        self.update_button.pack(side="left")
         self.remove_button = ttk.Button(
-            buttons, text="Снять с пада", command=self._remove_assignment
+            edit_buttons, text="Снять с пада", command=self._remove_assignment
         )
-        self.remove_button.pack(side="left")
+        self.remove_button.pack(side="left", padx=6)
 
         preset_bar = ttk.LabelFrame(self, text="Пресеты карт", padding=(8, 6))
         preset_bar.grid(row=2, column=0, sticky="ew", padx=10, pady=(6, 0))
@@ -433,6 +470,14 @@ class MapEditorWindow(tk.Toplevel):
             )
 
     def _refresh_details(self) -> None:
+        has_selection = bool(self.tree.selection())
+        has_pad_sample = (
+            self.selected_pad is not None
+            and self.selected_pad in self.assignments
+        )
+        self.play_button.configure(
+            state="normal" if (has_selection or has_pad_sample) else "disabled"
+        )
         if self.selected_pad is None:
             self.pad_label_var.set("—")
             self.note_var.set("—")
@@ -464,6 +509,60 @@ class MapEditorWindow(tk.Toplevel):
             self.update_button.configure(state="normal")
             self.remove_button.configure(state="normal")
         self.assign_button.configure(state="normal")
+
+    def _play_preview(self) -> None:
+        selection = self.tree.selection()
+        selected_relative = selection[0] if selection else None
+        path, label = preview_source(
+            self.items,
+            self.assignments,
+            selected_relative,
+            self.selected_pad,
+            self._samples_dir(),
+        )
+        if path is None or label is None:
+            messagebox.showinfo(
+                "Прослушивание",
+                "Выберите WAV в списке или пад с назначенным семплом.",
+                parent=self,
+            )
+            return
+        self._stop_preview()
+        try:
+            duration = self.preview.play(path)
+        except Exception as exc:
+            messagebox.showerror("Прослушивание", str(exc), parent=self)
+            return
+
+        self.status_var.set(f"▶ {label}")
+        source_relative = selected_relative or label
+        item_duration = next(
+            (
+                item.duration
+                for item in self.items
+                if item.relative == source_relative
+            ),
+            None,
+        )
+        seconds = duration or item_duration or 5.0
+        self._preview_after = self.after(
+            max(200, int(seconds * 1000) + 120),
+            self._stop_preview,
+        )
+
+    def _stop_preview(self) -> None:
+        if self._preview_after is not None:
+            try:
+                self.after_cancel(self._preview_after)
+            except Exception:
+                pass
+            self._preview_after = None
+        self.preview.stop()
+        self.status_var.set("Прослушивание остановлено.")
+
+    def destroy(self) -> None:
+        self._stop_preview()
+        super().destroy()
 
     def _read_params(self) -> tuple[float, float, float, bool] | None:
         try:

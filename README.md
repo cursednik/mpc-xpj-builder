@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
 
-**v1.1.1** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
+**v1.2.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
 Standard MIDI File. Windows GUI, CLI и batch-режим.
 
 [Скачать](https://github.com/cursednik/mpc-xpj-builder/releases) ·
@@ -15,6 +15,7 @@ Standard MIDI File. Windows GUI, CLI и batch-режим.
 - GUI и CLI для Windows, без runtime-зависимостей.
 - Pad-based карта на все 128 падов, банки A–H.
 - Редактор карты с автоназначением и `map.json`.
+- Прослушивание WAV прямо в редакторе карты.
 - Extended MIDI notes 0–127.
 - Несколько MIDI-файлов превращаются в несколько MPC sequence.
 - Loop, gain, pan, tune.
@@ -92,6 +93,8 @@ GUI позволяет выбрать папку семплов, MIDI, этал�
 - автоназначение по числовому префиксу (`36_kick.wav`) и именам
   (`kick`, `snare`, `hat`, `ride`, `crash`, …);
 - загрузка/сохранение `map.json`;
+- прослушивание WAV: выбранного в списке или назначенного на пад
+  (`▶ Прослушать` / `■ Стоп`);
 - именованные пресеты карт: сохранить, загрузить, удалить;
 - «Сохранить и применить» подставляет путь в поле `--map`.
 
@@ -146,7 +149,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v1.1.1-win64.zip
+dist\mpc-xpj-builder-v1.2.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -158,7 +161,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v1.1.1-setup.exe
+dist\mpc-xpj-builder-v1.2.0-setup.exe
 ```
 
 ## Как получить эталон
@@ -452,8 +455,8 @@ running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
 экспорт с mapped-семплами, `sampleEnd`, `sliceInfo.End`, gain/pan/tune/loop,
 GUI-аргументы, project browser, drag-and-drop routing, pad-based карта,
 extended-ноты, автоназначение, настройки GUI, recent projects, native drag-and-drop,
-пресеты карт, batch GUI, несколько sequence и игнорирование лишних WAV.
-Всего 70 тестов.
+пресеты карт, batch GUI, несколько sequence, прослушивание WAV и игнорирование
+лишних WAV. Всего 76 тестов.
 
 ## Статус проверки
 

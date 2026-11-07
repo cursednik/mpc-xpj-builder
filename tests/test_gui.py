@@ -4,8 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from audio_preview import AudioPreview
 from gui import build_cli_args
-from gui_map import pad_number_at
+from gui_map import pad_number_at, preview_source
+from kit_map import PadAssignment, scan_wav_items
 from tests.helpers import make_template, write_map, write_wav
 
 
@@ -87,6 +89,64 @@ class MapGridLayoutTests(unittest.TestCase):
             for column in range(4)
         ]
         self.assertEqual(sorted(numbers), list(range(1, 17)))
+
+
+class PreviewSourceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._temp.cleanup)
+        self.samples = Path(self._temp.name) / "samples"
+        write_wav(self.samples / "kick.wav")
+        write_wav(self.samples / "snare.wav")
+        self.items = scan_wav_items(self.samples)
+        self.assignments = {
+            0: PadAssignment(pad_index=0, file="kick.wav"),
+        }
+
+    def test_selected_wav_wins(self) -> None:
+        path, label = preview_source(
+            self.items,
+            self.assignments,
+            "snare.wav",
+            0,
+            self.samples,
+        )
+        self.assertEqual(path, self.samples / "snare.wav")
+        self.assertEqual(label, "snare.wav")
+
+    def test_pad_assignment_is_fallback(self) -> None:
+        path, label = preview_source(
+            self.items,
+            self.assignments,
+            None,
+            0,
+            self.samples,
+        )
+        self.assertEqual(path, self.samples / "kick.wav")
+        self.assertEqual(label, "kick.wav")
+
+    def test_missing_assigned_file_returns_none(self) -> None:
+        assignments = {0: PadAssignment(pad_index=0, file="missing.wav")}
+        self.assertEqual(
+            preview_source(self.items, assignments, None, 0, self.samples),
+            (None, None),
+        )
+
+    def test_nothing_selected(self) -> None:
+        self.assertEqual(
+            preview_source(self.items, {}, None, None, self.samples),
+            (None, None),
+        )
+
+
+class AudioPreviewTests(unittest.TestCase):
+    def test_stop_without_play_is_safe(self) -> None:
+        preview = AudioPreview()
+        preview.stop()
+        preview.stop()
+
+    def test_available_is_bool(self) -> None:
+        self.assertIsInstance(AudioPreview().available, bool)
 
 
 if __name__ == "__main__":

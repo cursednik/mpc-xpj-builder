@@ -40,6 +40,7 @@ Homepage = "https://github.com/cursednik/mpc-xpj-builder"
 
 [tool.setuptools]
 py-modules = [
+  "audio_preview",
   "batch",
   "dnd",
   "errors",
