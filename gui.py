@@ -15,6 +15,7 @@ from typing import Sequence
 
 import main as cli
 from dnd import disable_file_drop, enable_file_drop, route_dropped
+from gui_batch import BatchWindow
 from gui_map import MapEditorWindow
 from gui_projects import ProjectBrowserWindow
 from settings import GuiSettings, load_settings, remember_recent, save_settings
@@ -104,6 +105,7 @@ class App:
         self.dry_run = False
         self.map_editor: MapEditorWindow | None = None
         self.project_browser: ProjectBrowserWindow | None = None
+        self.batch_window: BatchWindow | None = None
 
         saved = load_settings()
         self.recent_projects = list(saved.recent_projects)
@@ -186,7 +188,7 @@ class App:
 
         actions = ttk.Frame(outer)
         actions.grid(row=1, column=0, sticky="ew", pady=(10, 8))
-        for column in range(6):
+        for column in range(7):
             actions.columnconfigure(column, weight=1)
 
         self.plan_button = ttk.Button(
@@ -217,19 +219,26 @@ class App:
         )
         self.projects_button.grid(row=0, column=3, sticky="ew", padx=5)
 
+        self.batch_button = ttk.Button(
+            actions,
+            text="Batch…",
+            command=self._open_batch,
+        )
+        self.batch_button.grid(row=0, column=4, sticky="ew", padx=5)
+
         self.open_button = ttk.Button(
             actions,
             text="Открыть папку",
             command=self._open_output,
         )
-        self.open_button.grid(row=0, column=4, sticky="ew", padx=5)
+        self.open_button.grid(row=0, column=5, sticky="ew", padx=5)
 
         self.clear_button = ttk.Button(
             actions,
             text="Очистить лог",
             command=self._clear_log,
         )
-        self.clear_button.grid(row=0, column=5, sticky="ew", padx=(5, 0))
+        self.clear_button.grid(row=0, column=6, sticky="ew", padx=(5, 0))
 
         log_frame = ttk.LabelFrame(outer, text="Лог", padding=8)
         log_frame.grid(row=2, column=0, sticky="nsew")
@@ -303,6 +312,7 @@ class App:
             self.export_button,
             self.map_button,
             self.projects_button,
+            self.batch_button,
             self.open_button,
             self.clear_button,
         ):
@@ -432,6 +442,23 @@ class App:
     def _on_project_template(self, path: Path) -> None:
         self.template_var.set(str(path))
         self.status_var.set(f"Эталон выбран: {path}")
+
+    def _open_batch(self) -> None:
+        if self.batch_window is not None and self.batch_window.winfo_exists():
+            self.batch_window.lift()
+            self.batch_window.focus_force()
+            return
+        self.batch_window = BatchWindow(
+            self.root,
+            template=self.template_var.get(),
+            output=self.output_var.get(),
+            bpm=self.bpm_var.get(),
+            samples=self.samples_var.get(),
+            midi=self.midi_var.get(),
+            name=self.name_var.get(),
+            sample_map=self.map_var.get(),
+            extended_notes=self.extended_var.get(),
+        )
 
     def _save_settings(self, *, show_error: bool) -> None:
         try:

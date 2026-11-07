@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -196,3 +198,41 @@ def load_batch_manifest(
         )
 
     return BatchSpec(source=path.resolve(), jobs=tuple(jobs))
+
+
+def save_batch_manifest(path: Path, payload: dict[str, Any]) -> Path:
+    """Проверить и атомарно записать batch-манифест."""
+    target = Path(path)
+    if target.suffix.lower() != ".json":
+        raise ValidationError("Batch-манифест должен быть .json.")
+    if not isinstance(payload, dict):
+        raise ValidationError("Batch-манифест должен быть JSON-объектом.")
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ValidationError(
+            f"Не удалось создать папку манифеста {target.parent}: {exc}"
+        ) from exc
+
+    temp_path: Path | None = None
+    try:
+        descriptor, raw_temp = tempfile.mkstemp(
+            prefix=".batch.",
+            suffix=".json",
+            dir=target.parent,
+        )
+        os.close(descriptor)
+        temp_path = Path(raw_temp)
+        temp_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        load_batch_manifest(temp_path)
+        os.replace(temp_path, target)
+    except OSError as exc:
+        raise ValidationError(f"Не удалось сохранить batch-манифест {target}: {exc}") from exc
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+    return target

@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 import main as cli
-from batch import load_batch_manifest
+from batch import load_batch_manifest, save_batch_manifest
 from errors import ValidationError
 from tests.helpers import make_template, write_map, write_midi, write_wav
 
@@ -147,6 +147,27 @@ class BatchTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             rc = cli.main(["--batch", str(manifest), "--inspect", str(self.template)])
         self.assertEqual(rc, 2)
+
+    def test_save_manifest_roundtrip(self) -> None:
+        target = self.root / "nested" / "saved-batch.json"
+        save_batch_manifest(target, self._manifest())
+        spec = load_batch_manifest(target)
+        self.assertEqual(len(spec.jobs), 2)
+        self.assertEqual(spec.jobs[0].name, "Batch A")
+        self.assertEqual(spec.jobs[1].bpm, 160.0)
+
+    def test_save_manifest_keeps_existing_file_on_invalid_payload(self) -> None:
+        target = self.root / "saved-batch.json"
+        target.write_text('{"old": true}', encoding="utf-8")
+        payload = self._manifest()
+        del payload["bpm"]
+        with self.assertRaises(ValidationError):
+            save_batch_manifest(target, payload)
+        self.assertEqual(target.read_text(encoding="utf-8"), '{"old": true}')
+
+    def test_save_manifest_requires_json_suffix(self) -> None:
+        with self.assertRaises(ValidationError):
+            save_batch_manifest(self.root / "batch.txt", self._manifest())
 
 
 if __name__ == "__main__":
