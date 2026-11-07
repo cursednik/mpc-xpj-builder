@@ -144,7 +144,7 @@ class App:
         form.columnconfigure(1, weight=1)
 
         self._entry_row(form, 0, "Папка с WAV", self.samples_var, "dir")
-        self._entry_row(form, 1, "MIDI-файл", self.midi_var, "midi")
+        self._entry_row(form, 1, "MIDI-файлы (через ;)", self.midi_var, "midi")
         self._entry_row(form, 2, "Имя проекта", self.name_var, None)
         self._entry_row(form, 3, "BPM", self.bpm_var, None)
         self._entry_row(form, 4, "Папка экспорта", self.output_var, "dir")
@@ -182,7 +182,7 @@ class App:
 
         ttk.Label(
             form,
-            text="Можно перетащить в окно папку WAV, MIDI, .xpj или map.json",
+            text="Можно перетащить папку WAV, несколько MIDI, .xpj или map.json",
             foreground="#666666",
         ).grid(row=9, column=0, columnspan=3, sticky="w", pady=(4, 0))
 
@@ -288,9 +288,10 @@ class App:
         if kind == "dir":
             path = filedialog.askdirectory()
         elif kind == "midi":
-            path = filedialog.askopenfilename(
+            paths = filedialog.askopenfilenames(
                 filetypes=[("MIDI", "*.mid *.midi"), ("All files", "*.*")]
             )
+            path = ";".join(paths)
         elif kind == "xpj":
             path = filedialog.askopenfilename(
                 filetypes=[("XPJ project", "*.xpj"), ("All files", "*.*")]
@@ -495,8 +496,11 @@ class App:
             self.samples_var.set(str(result.samples))
             changed.append("WAV-папка")
         if result.midi is not None:
-            self.midi_var.set(str(result.midi))
-            changed.append("MIDI")
+            midi_files = result.midi_files or (result.midi,)
+            self.midi_var.set(";".join(str(path) for path in midi_files))
+            changed.append(
+                "MIDI" if len(midi_files) == 1 else f"MIDI x{len(midi_files)}"
+            )
         if result.template is not None:
             self.template_var.set(str(result.template))
             changed.append(".xpj")

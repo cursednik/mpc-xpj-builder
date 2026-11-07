@@ -34,6 +34,18 @@ PAD_COUNT = 128
 
 
 @dataclass(frozen=True)
+class SequencePlan:
+    """Одна MPC sequence, собранная из отдельного MIDI-файла."""
+
+    midi: MidiFileData
+    name: str
+    bars: int
+    pulses: int
+    bar_pulses: int
+    time_signature: tuple[int, int]
+
+
+@dataclass(frozen=True)
 class BuildPlan:
     """Полный план экспорта, пригодный для dry-run и записи."""
 
@@ -51,6 +63,7 @@ class BuildPlan:
     time_signature: tuple[int, int]
     template_path: Path | None
     mapping_path: Path | None = None
+    sequences: tuple[SequencePlan, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -712,26 +725,27 @@ def _build_sequence(
     clip_prototype: dict[str, Any] | None,
     note_event_prototype: dict[str, Any] | None,
     plan: BuildPlan,
+    sequence_plan: SequencePlan,
     track_names: tuple[str, ...],
     drum_track_index: int,
     clip_order: tuple[str, ...],
 ) -> dict[str, Any]:
     sequence = copy.deepcopy(sequence_prototype)
     sequence["version"] = sequence.get("version", 5)
-    sequence["name"] = plan.project_name
+    sequence["name"] = sequence_plan.name
     sequence["bpm"] = float32(plan.bpm)
-    sequence["lengthBars"] = plan.sequence_bars
+    sequence["lengthBars"] = sequence_plan.bars
     sequence["loopStartBar"] = 0
-    sequence["loopEndBar"] = plan.sequence_bars
+    sequence["loopEndBar"] = sequence_plan.bars
     sequence["loop"] = True
     sequence["tempoEnable"] = True
     sequence["transposition"] = 0
-    sequence["lengthPulses"] = plan.sequence_pulses
+    sequence["lengthPulses"] = sequence_plan.pulses
     sequence["loopStartPulses"] = 0
-    sequence["loopEndPulses"] = plan.sequence_pulses
+    sequence["loopEndPulses"] = sequence_plan.pulses
     sequence["autoSelectTrackIndex"] = -1
 
-    numerator, denominator = plan.time_signature
+    numerator, denominator = sequence_plan.time_signature
     beat_length = (PPQ * 4) // denominator
     sequence["timeSignatureTrack"] = {
         "timeSignatures": [
@@ -745,14 +759,14 @@ def _build_sequence(
 
     # В реальных проектах trackClipMaps — это ровно одна строка, внутри
     # которой лежит по одному клипу на каждый трек.
-    note_events = _build_note_events(plan.midi, note_event_prototype)
+    note_events = _build_note_events(sequence_plan.midi, note_event_prototype)
     clip_by_name: dict[str, dict[str, Any]] = {}
     for index, track_name in enumerate(track_names):
         clip_by_name[track_name] = _build_clip(
             prototype=clip_prototype,
             event_list_prototype=event_list_prototype,
             name=track_name,
-            end_pulses=plan.sequence_pulses,
+            end_pulses=sequence_plan.pulses,
             events=note_events if index == drum_track_index else [],
         )
     ordered_names = [
@@ -903,17 +917,36 @@ def build_from_template(
     )
     clip_order = _template_clip_order(data, rename_map)
     sequence_prototype = _find_sequence_value(data)
-    new_sequence = _build_sequence(
-        sequence_prototype=sequence_prototype,
-        event_list_prototype=_find_event_list_prototype(data),
-        clip_prototype=_find_clip_prototype(data),
-        note_event_prototype=_find_note_event_prototype(data),
-        plan=plan,
-        track_names=track_names,
-        drum_track_index=new_drum_index,
-        clip_order=clip_order,
+    event_list_prototype = _find_event_list_prototype(data)
+    clip_prototype = _find_clip_prototype(data)
+    note_event_prototype = _find_note_event_prototype(data)
+    sequence_plans = plan.sequences or (
+        SequencePlan(
+            midi=plan.midi,
+            name=plan.project_name,
+            bars=plan.sequence_bars,
+            pulses=plan.sequence_pulses,
+            bar_pulses=plan.bar_pulses,
+            time_signature=plan.time_signature,
+        ),
     )
-    data["sequences"] = [{"key": 0, "value": new_sequence}]
+    data["sequences"] = [
+        {
+            "key": index,
+            "value": _build_sequence(
+                sequence_prototype=sequence_prototype,
+                event_list_prototype=event_list_prototype,
+                clip_prototype=clip_prototype,
+                note_event_prototype=note_event_prototype,
+                plan=plan,
+                sequence_plan=sequence_plan,
+                track_names=track_names,
+                drum_track_index=new_drum_index,
+                clip_order=clip_order,
+            ),
+        }
+        for index, sequence_plan in enumerate(sequence_plans)
+    ]
     data["currentSequence"] = 0
     data["currentTrackIndex"] = new_drum_index
     data["masterTempo"] = float32(plan.bpm)

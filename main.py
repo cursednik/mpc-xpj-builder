@@ -36,6 +36,7 @@ from wav_pool import WavPool, build_wav_pool
 from xpj_inspector import inspect_xpj
 from xpj_schema import (
     BuildPlan,
+    SequencePlan,
     assign_samples_to_pads,
     build_from_template,
     default_note_to_pad,
@@ -79,7 +80,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="JSON-манифест с несколькими проектами.",
     )
     parser.add_argument("--samples", type=Path, help="Папка с WAV-семплами.")
-    parser.add_argument("--midi", type=Path, help="Standard MIDI File (.mid/.midi).")
+    parser.add_argument(
+        "--midi",
+        type=Path,
+        action="append",
+        help=(
+            "Standard MIDI File (.mid/.midi). Можно указать несколько раз "
+            "или перечислить файлы через ';'. Каждый файл станет отдельной sequence."
+        ),
+    )
     parser.add_argument("--name", help="Имя проекта без пути.")
     parser.add_argument("--bpm", type=float, help=f"BPM ({MIN_BPM:g}..{MAX_BPM:g}).")
     parser.add_argument("--output", type=Path, help="Целевая папка экспорта.")
@@ -132,6 +141,24 @@ def _require_arg(value: object, name: str) -> None:
         raise InputError(f"Не задан обязательный аргумент {name}.")
 
 
+def _midi_paths(raw: object) -> tuple[Path, ...]:
+    """Нормализовать --midi: Path, список, ';'-строка или их комбинация."""
+    if raw is None:
+        return ()
+    values = raw if isinstance(raw, (list, tuple)) else [raw]
+    paths: list[Path] = []
+    for value in values:
+        if isinstance(value, str):
+            parts = [part.strip() for part in value.split(";") if part.strip()]
+        elif isinstance(value, Path):
+            parts = [str(value)]
+        else:
+            raise InputError(f"Некорректный путь MIDI: {value!r}.")
+        for part in parts:
+            paths.append(Path(part))
+    return tuple(paths)
+
+
 def _print_plan(plan: BuildPlan, header_version: str | None) -> None:
     print("MPC XPJ Builder — план экспорта")
     print(f"  Project:       {plan.project_name}")
@@ -142,13 +169,28 @@ def _print_plan(plan: BuildPlan, header_version: str | None) -> None:
     print(f"  Sample map:    {plan.mapping_path or 'нет (позиционное назначение)'}")
     if header_version:
         print(f"  Firmware:      {header_version}")
-    print(
-        f"  MIDI:          {len(plan.midi.notes)} notes, "
-        f"{plan.midi.time_signature[0]}/{plan.midi.time_signature[1]}, "
-        f"{plan.sequence_bars} bar(s), {plan.sequence_pulses} pulses @ {PPQ} PPQ"
+    sequences = plan.sequences or (
+        SequencePlan(
+            midi=plan.midi,
+            name=plan.project_name,
+            bars=plan.sequence_bars,
+            pulses=plan.sequence_pulses,
+            bar_pulses=plan.bar_pulses,
+            time_signature=plan.time_signature,
+        ),
     )
-    if plan.midi.tempo_bpm is not None:
-        print(f"  MIDI tempo:    {plan.midi.tempo_bpm:.3f} BPM (используется --bpm)")
+    print(f"  Sequences:     {len(sequences)}")
+    for index, sequence in enumerate(sequences, 1):
+        print(
+            f"    [{index}] {sequence.name}: {len(sequence.midi.notes)} notes, "
+            f"{sequence.time_signature[0]}/{sequence.time_signature[1]}, "
+            f"{sequence.bars} bar(s), {sequence.pulses} pulses @ {PPQ} PPQ"
+        )
+        if sequence.midi.tempo_bpm is not None:
+            print(
+                f"        MIDI tempo: {sequence.midi.tempo_bpm:.3f} BPM "
+                "(используется --bpm)"
+            )
     print(f"  WAV samples:   {len(plan.wavs)}")
     for binding in plan.bindings:
         note = (
@@ -171,14 +213,15 @@ def _print_plan(plan: BuildPlan, header_version: str | None) -> None:
             f"{binding.sample.source.name} -> {binding.sample.output_name}"
             f"{suffix}"
         )
-    print("  Events:")
-    for note in plan.midi.notes[:20]:
-        print(
-            f"    t={note.start_tick:>6}..{note.end_tick:<6} "
-            f"pitch={note.pitch:<3} vel={note.velocity:<3} ch={note.channel}"
-        )
-    if len(plan.midi.notes) > 20:
-        print(f"    ... ещё {len(plan.midi.notes) - 20} note(s)")
+    for sequence in sequences:
+        print(f"  Events [{sequence.name}]:")
+        for note in sequence.midi.notes[:20]:
+            print(
+                f"    t={note.start_tick:>6}..{note.end_tick:<6} "
+                f"pitch={note.pitch:<3} vel={note.velocity:<3} ch={note.channel}"
+            )
+        if len(sequence.midi.notes) > 20:
+            print(f"    ... ещё {len(sequence.midi.notes) - 20} note(s)")
 
 
 def _print_calibration() -> None:
@@ -191,7 +234,9 @@ def _make_plan(
     args: argparse.Namespace,
 ) -> tuple[BuildPlan, XPJHeader | None, dict | None]:
     _require_arg(args.samples, "--samples")
-    _require_arg(args.midi, "--midi")
+    midi_paths = _midi_paths(args.midi)
+    if not midi_paths:
+        raise InputError("Не задан обязательный аргумент --midi.")
     _require_arg(args.name, "--name")
     _require_arg(args.bpm, "--bpm")
     _require_arg(args.output, "--output")
@@ -199,24 +244,42 @@ def _make_plan(
     project_name = validate_project_name(args.name)
     bpm = validate_bpm(args.bpm)
     samples_dir = validate_sample_directory(args.samples)
-    midi_path = validate_midi_path(args.midi)
+    midi_paths = tuple(validate_midi_path(path) for path in midi_paths)
     output_dir = validate_output_dir(args.output)
     template_path = validate_template_path(args.template)
     mapping_path = validate_map_path(args.sample_map)
     xpj_path, data_dir = validate_export_targets(output_dir, project_name)
 
-    midi: MidiFileData = read_midi(midi_path)
-    _logger().debug(
-        "MIDI: ppq=%d notes=%d end_tick=%d tempo=%s",
-        midi.ppq,
-        len(midi.notes),
-        midi.end_tick,
-        midi.tempo_bpm,
+    midi_files: tuple[MidiFileData, ...] = tuple(
+        read_midi(path) for path in midi_paths
     )
-    validate_notes_present(len(midi.notes))
-    validate_note_range(
-        {note.pitch for note in midi.notes},
-        extended=args.extended_notes,
+    midi = midi_files[0]
+    for path, midi_data in zip(midi_paths, midi_files):
+        _logger().debug(
+            "MIDI %s: ppq=%d notes=%d end_tick=%d tempo=%s",
+            path,
+            midi_data.ppq,
+            len(midi_data.notes),
+            midi_data.end_tick,
+            midi_data.tempo_bpm,
+        )
+        validate_notes_present(len(midi_data.notes))
+        validate_note_range(
+            {note.pitch for note in midi_data.notes},
+            extended=args.extended_notes,
+        )
+
+    all_pitches = {
+        note.pitch for midi_data in midi_files for note in midi_data.notes
+    }
+    combined_midi = MidiFileData(
+        ppq=midi.ppq,
+        notes=tuple(
+            note for midi_data in midi_files for note in midi_data.notes
+        ),
+        end_tick=max(midi_data.end_tick for midi_data in midi_files),
+        tempo_bpm=midi.tempo_bpm,
+        time_signature=midi.time_signature,
     )
 
     template_header: XPJHeader | None = None
@@ -252,11 +315,11 @@ def _make_plan(
     else:
         pool = build_wav_pool(samples_dir)
         validate_sample_count(pool.count)
-        unique_notes = len({note.pitch for note in midi.notes})
+        unique_notes = len(all_pitches)
         validate_samples_cover_notes(pool.count, unique_notes)
         bindings = assign_samples_to_pads(
             pool.samples,
-            midi,
+            combined_midi,
             note_to_pad,
             allow_extended_notes=args.extended_notes,
         )
@@ -266,9 +329,7 @@ def _make_plan(
         for binding in bindings
         if binding.midi_note is not None
     }
-    missing_notes = sorted(
-        {note.pitch for note in midi.notes} - bound_notes
-    )
+    missing_notes = sorted(all_pitches - bound_notes)
     if missing_notes:
         shown = ", ".join(str(note) for note in missing_notes[:16])
         raise ValidationError(
@@ -287,8 +348,25 @@ def _make_plan(
             sample.info.codec,
         )
 
-    bars, sequence_pulses, bar_pulses, signature = sequence_timing(midi)
+    sequence_plans: list[SequencePlan] = []
+    for index, (path, midi_data) in enumerate(zip(midi_paths, midi_files)):
+        bars, sequence_pulses, bar_pulses, signature = sequence_timing(midi_data)
+        if len(midi_paths) == 1:
+            sequence_name = project_name
+        else:
+            sequence_name = path.stem.strip() or f"{project_name} {index + 1}"
+        sequence_plans.append(
+            SequencePlan(
+                midi=midi_data,
+                name=sequence_name,
+                bars=bars,
+                pulses=sequence_pulses,
+                bar_pulses=bar_pulses,
+                time_signature=signature,
+            )
+        )
 
+    first = sequence_plans[0]
     plan = BuildPlan(
         project_name=project_name,
         bpm=bpm,
@@ -296,14 +374,15 @@ def _make_plan(
         xpj_path=xpj_path,
         data_dir=data_dir,
         wavs=pool.samples,
-        midi=midi,
+        midi=first.midi,
         bindings=bindings,
-        sequence_bars=bars,
-        sequence_pulses=sequence_pulses,
-        bar_pulses=bar_pulses,
-        time_signature=signature,
+        sequence_bars=first.bars,
+        sequence_pulses=first.pulses,
+        bar_pulses=first.bar_pulses,
+        time_signature=first.time_signature,
         template_path=template_path,
         mapping_path=mapping_path,
+        sequences=tuple(sequence_plans),
     )
     return plan, template_header, template_payload
 
@@ -319,12 +398,23 @@ def _execute_plan(
     new_payload = build_from_template(template_payload, plan)
     xpj_path, data_dir = write_project(plan, template_header, new_payload)
 
+    sequences = plan.sequences or (
+        SequencePlan(
+            midi=plan.midi,
+            name=plan.project_name,
+            bars=plan.sequence_bars,
+            pulses=plan.sequence_pulses,
+            bar_pulses=plan.bar_pulses,
+            time_signature=plan.time_signature,
+        ),
+    )
     print("Проект создан.")
     print(f"  XPJ:         {xpj_path}")
     print(f"  ProjectData: {data_dir}")
     print(f"  Samples:     {len(plan.wavs)}")
-    print(f"  Notes:       {len(plan.midi.notes)}")
-    print(f"  Bars:        {plan.sequence_bars}")
+    print(f"  Sequences:   {len(sequences)}")
+    print(f"  Notes:       {sum(len(sequence.midi.notes) for sequence in sequences)}")
+    print(f"  Bars:        {', '.join(str(sequence.bars) for sequence in sequences)}")
     print(
         "  Schema:      неизвестные поля сохранены из --template; "
         "см. unresolved_fields() в xpj_schema.py"
@@ -374,7 +464,7 @@ def _run_batch(args: argparse.Namespace) -> int:
     for index, job in enumerate(spec.jobs, 1):
         job_args = argparse.Namespace(
             samples=job.samples,
-            midi=job.midi,
+            midi=list(job.midi_files or (job.midi,)),
             name=job.name,
             bpm=job.bpm,
             output=job.output,

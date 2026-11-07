@@ -19,6 +19,7 @@ class DropResult:
     template: Path | None = None
     sample_map: Path | None = None
     unsupported: tuple[Path, ...] = ()
+    midi_files: tuple[Path, ...] = ()
 
     @property
     def has_any(self) -> bool:
@@ -30,7 +31,7 @@ class DropResult:
 def route_dropped(paths: list[str] | tuple[str, ...]) -> DropResult:
     """Разложить упавшие пути по полям GUI."""
     samples: Path | None = None
-    midi: Path | None = None
+    midi_files: list[Path] = []
     template: Path | None = None
     sample_map: Path | None = None
     unsupported: list[Path] = []
@@ -46,8 +47,7 @@ def route_dropped(paths: list[str] | tuple[str, ...]) -> DropResult:
             if samples is None:
                 samples = path.parent
         elif suffix in {".mid", ".midi"}:
-            if midi is None:
-                midi = path
+            midi_files.append(path)
         elif suffix == ".xpj":
             if template is None:
                 template = path
@@ -59,10 +59,11 @@ def route_dropped(paths: list[str] | tuple[str, ...]) -> DropResult:
 
     return DropResult(
         samples=samples,
-        midi=midi,
+        midi=midi_files[0] if midi_files else None,
         template=template,
         sample_map=sample_map,
         unsupported=tuple(unsupported),
+        midi_files=tuple(midi_files),
     )
 
 

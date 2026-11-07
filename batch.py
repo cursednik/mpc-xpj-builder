@@ -26,6 +26,7 @@ class BatchJob:
     template: Path | None
     sample_map: Path | None
     extended_notes: bool = False
+    midi_files: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,24 @@ def _optional_path(
     if raw is None:
         return default
     return _resolve(base, raw, field)
+
+
+def _resolve_midi(base: Path, raw: Any, field: str) -> tuple[Path, ...]:
+    """MIDI может быть строкой, списком или строкой с ';'."""
+    if isinstance(raw, str):
+        values: list[Any] = [part.strip() for part in raw.split(";") if part.strip()]
+    elif isinstance(raw, list):
+        values = raw
+    else:
+        raise ValidationError(
+            f"Поле {field} должно быть строкой или массивом строк."
+        )
+    if not values:
+        raise ValidationError(f"Поле {field} не содержит MIDI-файлов.")
+    return tuple(
+        _resolve(base, value, f"{field}[{index}]")
+        for index, value in enumerate(values)
+    )
 
 
 def _optional_bpm(raw: Any, field: str) -> float | None:
@@ -145,7 +164,8 @@ def load_batch_manifest(
         name = validate_project_name(raw_name)
 
         samples = _resolve(base, raw.get("samples"), f"{label}.samples")
-        midi = _resolve(base, raw.get("midi"), f"{label}.midi")
+        midi_files = _resolve_midi(base, raw.get("midi"), f"{label}.midi")
+        midi = midi_files[0]
         output = _optional_path(
             base, raw.get("output"), f"{label}.output", global_output
         )
@@ -194,6 +214,7 @@ def load_batch_manifest(
                 template=template,
                 sample_map=sample_map,
                 extended_notes=extended_notes,
+                midi_files=midi_files,
             )
         )
 

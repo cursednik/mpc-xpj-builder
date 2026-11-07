@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 import main as cli
+from main import _midi_paths
 from tests.helpers import make_template, write_map, write_midi, write_wav
 from xpj_writer import read_xpj
 
@@ -85,6 +86,54 @@ class IntegrationExportTests(unittest.TestCase):
                     str(self.map_path),
                 ]
             )
+
+    def test_midi_semicolon_list(self) -> None:
+        second = self.root / "second.mid"
+        second.write_bytes(b"MThd")
+        self.assertEqual(
+            _midi_paths([f"{self.midi};{second}"]),
+            (self.midi, second),
+        )
+
+    def test_multiple_midi_files_become_sequences(self) -> None:
+        midi2 = self.root / "extra.mid"
+        write_midi(midi2, [(0, 36, 100, 120), (480, 38, 90, 120)])
+        with contextlib.redirect_stdout(io.StringIO()):
+            rc = cli.main(
+                [
+                    "--samples",
+                    str(self.samples),
+                    "--midi",
+                    str(self.midi),
+                    "--midi",
+                    str(midi2),
+                    "--name",
+                    "Multi Seq",
+                    "--bpm",
+                    "150",
+                    "--output",
+                    str(self.output),
+                    "--template",
+                    str(self.template),
+                    "--map",
+                    str(self.map_path),
+                ]
+            )
+        self.assertEqual(rc, 0)
+
+        _, payload, _ = read_xpj(self.output / "Multi Seq.xpj")
+        sequences = payload["data"]["sequences"]
+        self.assertEqual(len(sequences), 2)
+        first = sequences[0]["value"]
+        second = sequences[1]["value"]
+        self.assertEqual(first["name"], "drums")
+        self.assertEqual(second["name"], "extra")
+        self.assertEqual(
+            len(first["trackClipMaps"][0][0]["value"]["eventList"]["events"]), 4
+        )
+        self.assertEqual(
+            len(second["trackClipMaps"][0][0]["value"]["eventList"]["events"]), 2
+        )
 
     def test_mapped_export(self) -> None:
         self.assertEqual(self._export(), 0)

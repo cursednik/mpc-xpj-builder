@@ -74,7 +74,7 @@ class JobDialog(tk.Toplevel):
         self._path_row(
             outer,
             2,
-            "MIDI-файл",
+            "MIDI-файлы (через ;)",
             self.midi_var,
             "midi",
         )
@@ -130,10 +130,11 @@ class JobDialog(tk.Toplevel):
         if kind == "dir":
             path = filedialog.askdirectory(parent=self)
         elif kind == "midi":
-            path = filedialog.askopenfilename(
+            paths = filedialog.askopenfilenames(
                 parent=self,
                 filetypes=[("MIDI", "*.mid *.midi"), ("All files", "*.*")],
             )
+            path = ";".join(paths)
         else:
             path = filedialog.askopenfilename(
                 parent=self,
@@ -444,6 +445,14 @@ class BatchWindow(tk.Toplevel):
         except ValueError:
             return text
 
+    def _midi_payload(self, raw: object) -> Any:
+        if isinstance(raw, list):
+            return [str(item) for item in raw if str(item).strip()]
+        parts = [part.strip() for part in str(raw).split(";") if part.strip()]
+        if len(parts) > 1:
+            return parts
+        return parts[0] if parts else ""
+
     def _build_payload(self) -> dict[str, Any]:
         payload: dict[str, Any] = {}
         if self.template_var.get().strip():
@@ -459,7 +468,7 @@ class BatchWindow(tk.Toplevel):
             item: dict[str, Any] = {
                 "name": job.get("name", ""),
                 "samples": job.get("samples", ""),
-                "midi": job.get("midi", ""),
+                "midi": self._midi_payload(job.get("midi", "")),
             }
             for key in ("output", "template", "map"):
                 value = job.get(key)
@@ -530,9 +539,18 @@ class BatchWindow(tk.Toplevel):
             "" if payload.get("bpm") is None else str(payload.get("bpm"))
         )
         raw_jobs = payload.get("jobs")
-        self.jobs = [
-            dict(job) for job in raw_jobs if isinstance(job, dict)
-        ] if isinstance(raw_jobs, list) else []
+        jobs: list[dict[str, Any]] = []
+        if isinstance(raw_jobs, list):
+            for raw_job in raw_jobs:
+                if not isinstance(raw_job, dict):
+                    continue
+                item = dict(raw_job)
+                if isinstance(item.get("midi"), list):
+                    item["midi"] = ";".join(
+                        str(value) for value in item["midi"]
+                    )
+                jobs.append(item)
+        self.jobs = jobs
         self._refresh_jobs(select=0 if self.jobs else None)
         self.title(f"MPC XPJ Builder — batch — {path.name}")
         self._clear_log()

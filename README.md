@@ -16,6 +16,7 @@ Standard MIDI File. Windows GUI, CLI и batch-режим.
 - Pad-based карта на все 128 падов, банки A–H.
 - Редактор карты с автоназначением и `map.json`.
 - Extended MIDI notes 0–127.
+- Несколько MIDI-файлов превращаются в несколько MPC sequence.
 - Loop, gain, pan, tune.
 - Batch-сборка нескольких проектов из JSON-манифеста.
 - Браузер проектов и recent projects.
@@ -195,6 +196,22 @@ python main.py `
   --verbose
 ```
 
+Несколько `--midi` создают несколько sequence в одном проекте:
+
+```powershell
+python main.py `
+  --samples "C:\Samples\Kit" `
+  --midi "C:\MIDI\verse.mid" `
+  --midi "C:\MIDI\chorus.mid" `
+  --name "My Kit" `
+  --bpm 174 `
+  --output "C:\MPC Projects" `
+  --template "C:\MPC Projects\reference.xpj" `
+  --verbose
+```
+
+Файлы также можно перечислить одной строкой через `;`.
+
 Экспорт с явной картой семплов:
 
 ```powershell
@@ -302,9 +319,9 @@ My Kit_[ProjectData]\
 - Карта `pad <-> MIDI note` берётся из `padNoteMap` эталонного проекта.
   Для dry-run без эталона используется наблюдаемая карта MPC Sample:
   A1–A16 = 36–51, B1 = 52, …, H16 = 35.
-- Один MIDI-клип превращается в одну MPC sequence; `trackClipMaps` содержит одну
-  строку с клипами всех сохранённых треков. Инфраструктурные треки
-  (submix/output) из эталона сохраняются.
+- Каждый MIDI-файл превращается в отдельную MPC sequence; `trackClipMaps`
+  каждой sequence содержит одну строку с клипами всех сохранённых треков.
+  Инфраструктурные треки (submix/output) из эталона сохраняются.
 
 ## Batch-режим `--batch`
 

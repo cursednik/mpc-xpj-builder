@@ -51,11 +51,12 @@ class DropRouteTests(unittest.TestCase):
         self.assertIn(path, result.unsupported)
         self.assertFalse(result.has_any)
 
-    def test_first_of_each_type_wins(self) -> None:
+    def test_multiple_midi_are_kept_in_order(self) -> None:
         midi2 = self.root / "other.mid"
         midi2.write_bytes(b"MThd")
         result = route_dropped([str(self.midi), str(midi2)])
         self.assertEqual(result.midi, self.midi)
+        self.assertEqual(result.midi_files, (self.midi, midi2))
 
 
 if __name__ == "__main__":

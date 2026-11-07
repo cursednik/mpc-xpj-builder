@@ -148,6 +148,25 @@ class BatchTests(unittest.TestCase):
             rc = cli.main(["--batch", str(manifest), "--inspect", str(self.template)])
         self.assertEqual(rc, 2)
 
+    def test_midi_list_manifest(self) -> None:
+        second = self.root / "second.mid"
+        write_midi(second, [(0, 36, 100, 100)])
+        payload = self._manifest()
+        payload["jobs"] = [
+            {
+                "name": "Batch Multi",
+                "samples": "samples_a",
+                "midi": ["a.mid", "second.mid"],
+            }
+        ]
+        manifest = self._write_manifest(payload)
+        spec = load_batch_manifest(manifest)
+        self.assertEqual(len(spec.jobs), 1)
+        self.assertEqual(
+            spec.jobs[0].midi_files,
+            (self.root / "a.mid", self.root / "second.mid"),
+        )
+
     def test_save_manifest_roundtrip(self) -> None:
         target = self.root / "nested" / "saved-batch.json"
         save_batch_manifest(target, self._manifest())
