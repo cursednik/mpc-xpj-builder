@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["akai", "mpc", "mpc-sample", "xpj", "midi", "wav"]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Environment :: Console",
   "Intended Audience :: End Users/Desktop",
   "Operating System :: Microsoft :: Windows",

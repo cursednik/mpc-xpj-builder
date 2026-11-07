@@ -1,9 +1,33 @@
-# mpc_xpj_builder (prototype)
+# mpc-xpj-builder
 
 [![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
 
-Консольный прототип сборки минимального drum-проекта для **Akai MPC Sample** из
-папки WAV и одного Standard MIDI File.
+**v1.0.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
+Standard MIDI File. Windows GUI, CLI и batch-режим.
+
+[Скачать](https://github.com/cursednik/mpc-xpj-builder/releases) ·
+[Руководство пользователя](docs/USER_GUIDE.md)
+
+![Главное окно](docs/images/gui-main.png)
+
+## Возможности
+
+- GUI и CLI для Windows, без runtime-зависимостей.
+- Pad-based карта на все 128 падов, банки A–H.
+- Редактор карты с автоназначением и `map.json`.
+- Extended MIDI notes 0–127.
+- Loop, gain, pan, tune.
+- Batch-сборка нескольких проектов из JSON-манифеста.
+- Браузер проектов и recent projects.
+- Drag-and-drop WAV, MIDI, `.xpj` и `map.json` из проводника.
+- Windows installer и portable ZIP.
+
+## Документация
+
+- [Руководство пользователя](docs/USER_GUIDE.md) — установка, GUI, карта,
+  браузер, batch, troubleshooting.
+- [Проверка на железе](docs/HARDWARE_TEST.md) — чек-лист для MPC Sample.
+- [История валидации](docs/VALIDATION.md) — что и на какой прошивке проверено.
 
 ## Важное ограничение
 
@@ -58,6 +82,8 @@ GUI позволяет выбрать папку семплов, MIDI, этал�
 
 Кнопка **«Карта семплов…»** открывает редактор:
 
+![Редактор карты семплов](docs/images/gui-map-editor.png)
+
 - список WAV с длительностью/форматом;
 - сетка всех 128 pads по банкам A–H;
 - назначение выбранного WAV на pad;
@@ -77,8 +103,11 @@ GUI сохраняет последние папки, MIDI, template, map, им�
 последних созданных проектов; выбранный проект можно открыть в проводнике.
 
 Кнопка **«Проекты…»** открывает browser всех `.xpj` в папке экспорта:
-имя, BPM, число семплов, такты, число треков, дата изменения. Оттуда можно
-открыть папку проекта или назначить проект эталоном.
+
+![Браузер проектов](docs/images/gui-projects.png)
+
+В таблице показаны имя, BPM, число семплов, такты, число треков, дата изменения.
+Оттуда можно открыть папку проекта или назначить проект эталоном.
 
 В главное окно можно перетащить:
 
@@ -104,7 +133,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v0.10.2-win64.zip
+dist\mpc-xpj-builder-v1.0.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -116,7 +145,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v0.10.2-setup.exe
+dist\mpc-xpj-builder-v1.0.0-setup.exe
 ```
 
 ## Как получить эталон

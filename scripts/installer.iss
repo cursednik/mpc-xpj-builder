@@ -27,7 +27,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 Source: "..\dist\mpc-xpj-builder.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\mpc-xpj-builder-gui.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\docs\HARDWARE_TEST.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\MPC XPJ Builder GUI"; Filename: "{app}\mpc-xpj-builder-gui.exe"

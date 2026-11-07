@@ -32,8 +32,8 @@ New-Item -ItemType Directory -Path $stage | Out-Null
 Copy-Item -LiteralPath $exeCli -Destination $stage
 Copy-Item -LiteralPath $exeGui -Destination $stage
 Copy-Item -LiteralPath (Join-Path $root "README.md") -Destination $stage
-if (Test-Path -LiteralPath (Join-Path $root "docs\HARDWARE_TEST.md")) {
-    Copy-Item -LiteralPath (Join-Path $root "docs\HARDWARE_TEST.md") -Destination $stage
+if (Test-Path -LiteralPath (Join-Path $root "docs")) {
+    Copy-Item -LiteralPath (Join-Path $root "docs") -Destination $stage -Recurse
 }
 $checks = @(
     (Join-Path $dist "mpc-xpj-builder.exe.sha256"),
