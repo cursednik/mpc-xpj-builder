@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
 
-**v1.1.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
+**v1.1.1** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
 Standard MIDI File. Windows GUI, CLI и batch-режим.
 
 [Скачать](https://github.com/cursednik/mpc-xpj-builder/releases) ·
@@ -86,7 +86,7 @@ GUI позволяет выбрать папку семплов, MIDI, этал�
 ![Редактор карты семплов](docs/images/gui-map-editor.png)
 
 - список WAV с длительностью/форматом;
-- сетка всех 128 pads по банкам A–H;
+- сетка всех 128 pads по банкам A–H (A1 внизу слева, как на MPC Sample);
 - назначение выбранного WAV на pad;
 - `gain`, `pan`, `tune`, `loop`;
 - автоназначение по числовому префиксу (`36_kick.wav`) и именам
@@ -146,7 +146,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v1.1.0-win64.zip
+dist\mpc-xpj-builder-v1.1.1-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -158,7 +158,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v1.1.0-setup.exe
+dist\mpc-xpj-builder-v1.1.1-setup.exe
 ```
 
 ## Как получить эталон
@@ -453,7 +453,7 @@ running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
 GUI-аргументы, project browser, drag-and-drop routing, pad-based карта,
 extended-ноты, автоназначение, настройки GUI, recent projects, native drag-and-drop,
 пресеты карт, batch GUI, несколько sequence и игнорирование лишних WAV.
-Всего 68 тестов.
+Всего 70 тестов.
 
 ## Статус проверки
 

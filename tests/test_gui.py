@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from gui import build_cli_args
+from gui_map import pad_number_at
 from tests.helpers import make_template, write_map, write_wav
 
 
@@ -69,6 +70,23 @@ class GuiArgsTests(unittest.TestCase):
     def test_missing_output_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "папку экспорта"):
             self._args(output="")
+
+
+class MapGridLayoutTests(unittest.TestCase):
+    def test_a1_is_bottom_left(self) -> None:
+        self.assertEqual(pad_number_at(3, 0), 1)
+        self.assertEqual(pad_number_at(3, 3), 4)
+        self.assertEqual(pad_number_at(2, 0), 5)
+        self.assertEqual(pad_number_at(0, 0), 13)
+        self.assertEqual(pad_number_at(0, 3), 16)
+
+    def test_grid_covers_every_pad_once(self) -> None:
+        numbers = [
+            pad_number_at(row, column)
+            for row in range(4)
+            for column in range(4)
+        ]
+        self.assertEqual(sorted(numbers), list(range(1, 17)))
 
 
 if __name__ == "__main__":

@@ -11,6 +11,13 @@ import kit_map
 import map_presets
 from errors import ValidationError
 
+PAD_GRID_ROWS = 4
+
+
+def pad_number_at(row: int, column: int) -> int:
+    """Номер пада для позиции сетки: A1 внизу слева, A16 вверху справа."""
+    return (PAD_GRID_ROWS - 1 - row) * 4 + column + 1
+
 
 class MapEditorWindow(tk.Toplevel):
     def __init__(
@@ -115,6 +122,11 @@ class MapEditorWindow(tk.Toplevel):
         )
         bank.pack(side="left", padx=6)
         bank.bind("<<ComboboxSelected>>", lambda _event: self._bank_changed())
+        ttk.Label(
+            bank_frame,
+            text="A1 внизу слева, A16 вверху справа",
+            foreground="#666666",
+        ).pack(side="right")
 
         grid = ttk.Frame(right)
         grid.grid(row=1, column=0, sticky="nsew")
@@ -122,7 +134,7 @@ class MapEditorWindow(tk.Toplevel):
             grid.rowconfigure(row, weight=1)
             for column in range(4):
                 grid.columnconfigure(column, weight=1)
-                pad_number = row * 4 + column + 1
+                pad_number = pad_number_at(row, column)
                 button = tk.Button(
                     grid,
                     text=f"{pad_number}",
