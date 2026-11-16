@@ -11,8 +11,18 @@ from midi_clock import (
     START,
     STOP,
     ClockEngine,
+    ClockMonitor,
+    MidiInput,
     MidiOutput,
 )
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.value = 0.0
+
+    def __call__(self) -> float:
+        return self.value
 
 
 class FakeOutput:
@@ -89,6 +99,43 @@ class MidiClockTests(unittest.TestCase):
         output = MidiOutput()
         with self.assertRaises(RuntimeError):
             output.open(9999)
+
+    def test_clock_monitor_computes_bpm(self) -> None:
+        clock = FakeClock()
+        monitor = ClockMonitor(clock=clock)
+        monitor.feed(START)
+        interval = 60.0 / (120 * 24)
+        for _ in range(25):
+            clock.value += interval
+            monitor.feed(CLOCK)
+        self.assertIsNotNone(monitor.bpm)
+        self.assertAlmostEqual(monitor.bpm or 0.0, 120.0, places=1)
+        self.assertEqual(monitor.pulses, 25)
+        self.assertTrue(monitor.running)
+
+    def test_clock_monitor_stop_and_stale(self) -> None:
+        clock = FakeClock()
+        monitor = ClockMonitor(clock=clock)
+        monitor.feed(START)
+        clock.value += 0.1
+        monitor.feed(CLOCK)
+        monitor.feed(STOP)
+        self.assertFalse(monitor.running)
+
+        monitor.feed(START)
+        self.assertTrue(monitor.running)
+        clock.value += 2.0
+        self.assertFalse(monitor.running)
+
+    def test_list_input_devices_returns_tuple(self) -> None:
+        self.assertIsInstance(MidiInput.list_devices(), tuple)
+
+    def test_open_invalid_input_fails(self) -> None:
+        if not MidiInput.available():
+            self.skipTest("Windows only")
+        input_device = MidiInput()
+        with self.assertRaises(RuntimeError):
+            input_device.open(9999, lambda status: None)
 
 
 if __name__ == "__main__":

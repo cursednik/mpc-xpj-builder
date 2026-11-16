@@ -6,6 +6,8 @@ import ctypes
 import sys
 import threading
 import time
+from collections import deque
+from ctypes import wintypes
 from dataclasses import dataclass
 from typing import Callable
 
@@ -17,6 +19,8 @@ START = 0xFA
 CONTINUE = 0xFB
 STOP = 0xFC
 PPQN = 24
+MIM_DATA = 0x3C3
+CALLBACK_FUNCTION = 0x00030000
 
 
 @dataclass(frozen=True)
@@ -35,6 +39,16 @@ class _MIDIOUTCAPSW(ctypes.Structure):
         ("wVoices", ctypes.c_ushort),
         ("wNotes", ctypes.c_ushort),
         ("wChannelMask", ctypes.c_ushort),
+        ("dwSupport", ctypes.c_uint),
+    ]
+
+
+class _MIDIINCAPSW(ctypes.Structure):
+    _fields_ = [
+        ("wMid", ctypes.c_ushort),
+        ("wPid", ctypes.c_ushort),
+        ("vDriverVersion", ctypes.c_uint),
+        ("szPname", ctypes.c_wchar * 32),
         ("dwSupport", ctypes.c_uint),
     ]
 
@@ -164,6 +178,237 @@ class MidiOutput:
 
     def __del__(self) -> None:
         self.close()
+
+
+class MidiInput:
+    """Один Windows MIDI-вход."""
+
+    def __init__(self) -> None:
+        self._winmm = None
+        self._handle: ctypes.c_void_p | None = None
+        self._device_index: int | None = None
+        self._callback = None
+        self._on_message: Callable[[int], None] | None = None
+        if sys.platform == "win32":
+            try:
+                self._winmm = ctypes.windll.winmm
+                self._configure()
+            except Exception:
+                self._winmm = None
+
+    @staticmethod
+    def available() -> bool:
+        return sys.platform == "win32"
+
+    @classmethod
+    def list_devices(cls) -> tuple[MidiDevice, ...]:
+        if sys.platform != "win32":
+            return ()
+        try:
+            return cls()._list_devices()
+        except Exception:
+            return ()
+
+    def _configure(self) -> None:
+        assert self._winmm is not None
+        self._winmm.midiInGetNumDevs.argtypes = []
+        self._winmm.midiInGetNumDevs.restype = ctypes.c_uint
+        self._winmm.midiInGetDevCapsW.argtypes = [
+            ctypes.c_size_t,
+            ctypes.POINTER(_MIDIINCAPSW),
+            ctypes.c_uint,
+        ]
+        self._winmm.midiInGetDevCapsW.restype = ctypes.c_uint
+        self._winmm.midiInOpen.argtypes = [
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.c_uint,
+            ctypes.c_size_t,
+            ctypes.c_size_t,
+            ctypes.c_uint,
+        ]
+        self._winmm.midiInOpen.restype = ctypes.c_uint
+        self._winmm.midiInStart.argtypes = [ctypes.c_void_p]
+        self._winmm.midiInStart.restype = ctypes.c_uint
+        self._winmm.midiInStop.argtypes = [ctypes.c_void_p]
+        self._winmm.midiInStop.restype = ctypes.c_uint
+        self._winmm.midiInClose.argtypes = [ctypes.c_void_p]
+        self._winmm.midiInClose.restype = ctypes.c_uint
+        self._winmm.midiInGetErrorTextW.argtypes = [
+            ctypes.c_uint,
+            ctypes.c_wchar_p,
+            ctypes.c_uint,
+        ]
+        self._winmm.midiInGetErrorTextW.restype = ctypes.c_uint
+
+    def _list_devices(self) -> tuple[MidiDevice, ...]:
+        assert self._winmm is not None
+        count = int(self._winmm.midiInGetNumDevs())
+        devices: list[MidiDevice] = []
+        for index in range(count):
+            caps = _MIDIINCAPSW()
+            result = self._winmm.midiInGetDevCapsW(
+                index,
+                ctypes.byref(caps),
+                ctypes.sizeof(caps),
+            )
+            if result == 0:
+                devices.append(MidiDevice(index=index, name=caps.szPname))
+        return tuple(devices)
+
+    def open(self, device_index: int, on_message: Callable[[int], None]) -> None:
+        if sys.platform != "win32" or self._winmm is None:
+            raise RuntimeError("MIDI доступен только на Windows.")
+        if self._handle is not None:
+            self.close()
+        callback_type = ctypes.WINFUNCTYPE(
+            None,
+            ctypes.c_void_p,
+            ctypes.c_uint,
+            ctypes.c_size_t,
+            ctypes.c_size_t,
+            ctypes.c_size_t,
+        )
+        self._on_message = on_message
+        self._callback = callback_type(self._midi_in_proc)
+        handle = ctypes.c_void_p()
+        result = self._winmm.midiInOpen(
+            ctypes.byref(handle),
+            int(device_index),
+            ctypes.cast(self._callback, ctypes.c_void_p).value,
+            0,
+            CALLBACK_FUNCTION,
+        )
+        if result != 0:
+            raise RuntimeError(self._error_text(result))
+        self._handle = handle
+        self._device_index = int(device_index)
+
+    def start(self) -> None:
+        if self._handle is None or self._winmm is None:
+            raise RuntimeError("MIDI-вход не открыт.")
+        result = self._winmm.midiInStart(self._handle)
+        if result != 0:
+            raise RuntimeError(self._error_text(result))
+
+    def stop(self) -> None:
+        if self._handle is not None and self._winmm is not None:
+            try:
+                self._winmm.midiInStop(self._handle)
+            except Exception:
+                pass
+
+    def close(self) -> None:
+        if self._handle is not None and self._winmm is not None:
+            try:
+                self._winmm.midiInStop(self._handle)
+                self._winmm.midiInClose(self._handle)
+            except Exception:
+                pass
+        self._handle = None
+        self._device_index = None
+        self._callback = None
+        self._on_message = None
+
+    def _midi_in_proc(
+        self,
+        handle: int,
+        message: int,
+        instance: int,
+        param1: int,
+        param2: int,
+    ) -> None:
+        if message != MIM_DATA:
+            return
+        status = int(param1) & 0xFF
+        callback = self._on_message
+        if callback is not None:
+            try:
+                callback(status)
+            except Exception:
+                pass
+
+    def _error_text(self, code: int) -> str:
+        if self._winmm is None:
+            return f"MIDI error {code}"
+        buffer = ctypes.create_unicode_buffer(512)
+        result = self._winmm.midiInGetErrorTextW(code, buffer, len(buffer))
+        if result == 0 and buffer.value:
+            return buffer.value
+        return f"MIDI error {code}"
+
+    def __enter__(self) -> "MidiInput":
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        self.close()
+
+
+class ClockMonitor:
+    """Считает BPM и состояние транспорта по входящему MIDI Clock."""
+
+    def __init__(self, clock: Callable[[], float] = time.perf_counter) -> None:
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._intervals: deque[float] = deque(maxlen=24)
+        self._last_clock: float | None = None
+        self._running = False
+        self._pulses = 0
+
+    def feed(self, status: int) -> None:
+        now = self._clock()
+        with self._lock:
+            if status == START:
+                self._running = True
+                self._intervals.clear()
+                self._last_clock = now
+                self._pulses = 0
+            elif status == CONTINUE:
+                self._running = True
+                self._last_clock = now
+            elif status == STOP:
+                self._running = False
+            elif status == CLOCK:
+                if self._last_clock is not None:
+                    interval = now - self._last_clock
+                    if 0.002 <= interval <= 1.0:
+                        self._intervals.append(interval)
+                self._last_clock = now
+                self._pulses += 1
+
+    @property
+    def bpm(self) -> float | None:
+        with self._lock:
+            if not self._intervals:
+                return None
+            average = sum(self._intervals) / len(self._intervals)
+            if average <= 0:
+                return None
+            return 60.0 / (average * PPQN)
+
+    @property
+    def running(self) -> bool:
+        with self._lock:
+            if not self._running:
+                return False
+            if self._last_clock is not None:
+                if self._clock() - self._last_clock > 1.0:
+                    return False
+            return True
+
+    @property
+    def pulses(self) -> int:
+        with self._lock:
+            return self._pulses
+
+    def reset(self) -> None:
+        with self._lock:
+            self._intervals.clear()
+            self._last_clock = None
+            self._running = False
+            self._pulses = 0
 
 
 class ClockEngine:

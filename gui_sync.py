@@ -1,34 +1,39 @@
-"""Окно MIDI Clock Sync: PC — мастер, MPC Sample — слейв."""
+"""Окно MIDI Clock Sync: PC ↔ MPC Sample."""
 
 from __future__ import annotations
 
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from midi_clock import ClockEngine, MidiDevice, MidiOutput
+from midi_clock import ClockEngine, ClockMonitor, MidiDevice, MidiInput, MidiOutput
 from validators import validate_bpm
 
 
 class SyncWindow(tk.Toplevel):
-    """Отправляет MIDI Clock/Start/Stop на выбранный MIDI-выход."""
+    """MIDI Clock в обе стороны: PC-мастер или MPC-мастер."""
 
     def __init__(self, master: tk.Misc, *, bpm: str = "120") -> None:
         super().__init__(master)
         self.title("MPC XPJ Builder — MIDI Sync")
-        self.geometry("680x560")
-        self.minsize(600, 500)
+        self.geometry("760x620")
+        self.minsize(680, 560)
         self.transient(master.winfo_toplevel())
 
         self.output: MidiOutput | None = None
         self.engine: ClockEngine | None = None
+        self.input: MidiInput | None = None
+        self.monitor: ClockMonitor | None = None
         self.devices: tuple[MidiDevice, ...] = ()
         self.device_map: dict[str, int] = {}
         self._after_id: str | None = None
 
+        self.mode_var = tk.StringVar(value="pc")
+        self.device_label_var = tk.StringVar(value="MIDI-выход")
         self.device_var = tk.StringVar(value="")
         self.bpm_var = tk.StringVar(value=bpm)
         self.status_var = tk.StringVar(value="")
         self.pulse_var = tk.StringVar(value="Импульсов: 0")
+        self.incoming_var = tk.StringVar(value="BPM: —")
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -38,30 +43,50 @@ class SyncWindow(tk.Toplevel):
         outer = ttk.Frame(self, padding=12)
         outer.pack(fill="both", expand=True)
         outer.columnconfigure(0, weight=1)
-        outer.rowconfigure(2, weight=1)
+        outer.rowconfigure(3, weight=1)
 
         info = ttk.LabelFrame(outer, text="Схема", padding=8)
         info.grid(row=0, column=0, sticky="ew")
         ttk.Label(
             info,
-            text="PC — мастер, MPC Sample — слейв (MIDI Clock).",
+            text="MIDI Clock: PC и MPC Sample могут быть мастером по очереди.",
             font=("Segoe UI", 10, "bold"),
         ).pack(anchor="w")
         ttk.Label(
             info,
             text=(
-                "На MPC Sample: SHIFT + PAD 8 → MIDI Config → MIDI Port = USB, "
-                "MIDI Sync In = Midi Clock, MIDI Sync Out = Off."
+                "На MPC Sample: SHIFT + PAD 8 → MIDI Config → MIDI Port = USB. "
+                "Для PC-мастера: MIDI Sync In = Midi Clock, Sync Out = Off. "
+                "Для MPC-мастера: MIDI Sync Out = Midi Clock, Sync In = Off."
             ),
-            wraplength=620,
+            wraplength=700,
             foreground="#444444",
         ).pack(anchor="w", pady=(4, 0))
 
+        mode = ttk.LabelFrame(outer, text="Режим", padding=8)
+        mode.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        self.pc_radio = ttk.Radiobutton(
+            mode,
+            text="PC → MPC (PC мастер)",
+            variable=self.mode_var,
+            value="pc",
+            command=self._mode_changed,
+        )
+        self.pc_radio.pack(side="left")
+        self.mpc_radio = ttk.Radiobutton(
+            mode,
+            text="MPC → PC (MPC мастер)",
+            variable=self.mode_var,
+            value="mpc",
+            command=self._mode_changed,
+        )
+        self.mpc_radio.pack(side="left", padx=16)
+
         form = ttk.LabelFrame(outer, text="Параметры", padding=8)
-        form.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        form.grid(row=2, column=0, sticky="ew", pady=(8, 0))
         form.columnconfigure(1, weight=1)
 
-        ttk.Label(form, text="MIDI-выход").grid(
+        ttk.Label(form, textvariable=self.device_label_var).grid(
             row=0, column=0, sticky="w", padx=(0, 8), pady=3
         )
         self.device_combo = ttk.Combobox(
@@ -74,15 +99,17 @@ class SyncWindow(tk.Toplevel):
             row=0, column=2, padx=(8, 0), pady=3
         )
 
-        ttk.Label(form, text="BPM").grid(
-            row=1, column=0, sticky="w", padx=(0, 8), pady=3
+        self.bpm_row = ttk.Frame(form)
+        self.bpm_row.grid(
+            row=1, column=0, columnspan=3, sticky="w", pady=3
         )
-        tempo = ttk.Frame(form)
-        tempo.grid(row=1, column=1, sticky="w", pady=3)
-        ttk.Entry(tempo, textvariable=self.bpm_var, width=10).pack(side="left")
-        ttk.Button(tempo, text="Применить", command=self._apply_bpm).pack(
-            side="left", padx=6
+        ttk.Label(self.bpm_row, text="BPM мастера").pack(side="left")
+        ttk.Entry(self.bpm_row, textvariable=self.bpm_var, width=10).pack(
+            side="left", padx=8
         )
+        ttk.Button(
+            self.bpm_row, text="Применить", command=self._apply_bpm
+        ).pack(side="left")
 
         ttk.Label(
             form,
@@ -90,12 +117,12 @@ class SyncWindow(tk.Toplevel):
                 "MIDI Clock — 24 импульса на четверть. Синхронизация не "
                 "sample-accurate: возможен небольшой джиттер."
             ),
-            wraplength=620,
+            wraplength=700,
             foreground="#666666",
         ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
         state = ttk.LabelFrame(outer, text="Состояние", padding=8)
-        state.grid(row=2, column=0, sticky="nsew", pady=(8, 0))
+        state.grid(row=3, column=0, sticky="nsew", pady=(8, 0))
         state.columnconfigure(0, weight=1)
         self.indicator = tk.Label(
             state,
@@ -105,20 +132,23 @@ class SyncWindow(tk.Toplevel):
         )
         self.indicator.grid(row=0, column=0, sticky="w")
         ttk.Label(state, textvariable=self.pulse_var).grid(
-            row=0, column=1, sticky="e"
+            row=0, column=1, sticky="e", padx=(0, 16)
+        )
+        ttk.Label(state, textvariable=self.incoming_var).grid(
+            row=0, column=2, sticky="e"
         )
         ttk.Label(
             state,
             text=(
-                "Start отправляет Start + Clock. Stop отправляет Stop. "
-                "При изменении BPM темп меняется на лету."
+                "PC-мастер: Start отправляет Start + Clock, Stop отправляет Stop. "
+                "MPC-мастер: приложение слушает Clock и показывает BPM."
             ),
-            wraplength=620,
+            wraplength=700,
             foreground="#666666",
-        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(8, 0))
 
         bottom = ttk.Frame(outer)
-        bottom.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        bottom.grid(row=4, column=0, sticky="ew", pady=(10, 0))
         self.start_button = ttk.Button(
             bottom, text="▶ Start", command=self._start
         )
@@ -134,16 +164,26 @@ class SyncWindow(tk.Toplevel):
             side="right", padx=(0, 12)
         )
 
+    def _running(self) -> bool:
+        return bool(
+            (self.engine is not None and self.engine.running)
+            or self.input is not None
+        )
+
     def refresh_devices(self) -> None:
-        if self.engine is not None:
+        if self._running():
             return
-        self.devices = MidiOutput.list_devices()
+        pc_mode = self.mode_var.get() == "pc"
+        self.devices = (
+            MidiOutput.list_devices() if pc_mode else MidiInput.list_devices()
+        )
         displays = [f"{device.index}: {device.name}" for device in self.devices]
         self.device_map = {
             f"{device.index}: {device.name}": device.index
             for device in self.devices
         }
         self.device_combo.configure(values=displays)
+        noun = "выходов" if pc_mode else "входов"
         if displays:
             preferred = next(
                 (
@@ -154,20 +194,43 @@ class SyncWindow(tk.Toplevel):
                 displays[0],
             )
             self.device_var.set(preferred)
-            self.status_var.set(f"Найдено MIDI-выходов: {len(displays)}")
+            self.status_var.set(f"Найдено MIDI-{noun}: {len(displays)}")
         else:
             self.device_var.set("")
             self.status_var.set(
-                "MIDI-устройства не найдены. Подключите MPC Sample по USB."
+                f"MIDI-{noun} не найдены. Подключите MPC Sample по USB."
             )
 
     def _selected_device(self) -> int | None:
         display = self.device_var.get().strip()
         return self.device_map.get(display)
 
+    def _mode_changed(self) -> None:
+        pc_mode = self.mode_var.get() == "pc"
+        self.device_label_var.set("MIDI-выход" if pc_mode else "MIDI-вход")
+        self.start_button.configure(
+            text="▶ Start" if pc_mode else "▶ Слушать"
+        )
+        if pc_mode:
+            self.bpm_row.grid(
+                row=1, column=0, columnspan=3, sticky="w", pady=3
+            )
+        else:
+            self.bpm_row.grid_remove()
+        self.incoming_var.set("BPM: —")
+        self.indicator.configure(text="● STOP", fg="#a00000")
+        self.pulse_var.set("Импульсов: 0")
+        self.refresh_devices()
+
     def _start(self) -> None:
-        if self.engine is not None and self.engine.running:
+        if self._running():
             return
+        if self.mode_var.get() == "pc":
+            self._start_pc()
+        else:
+            self._start_mpc()
+
+    def _start_pc(self) -> None:
         try:
             bpm = validate_bpm(self.bpm_var.get())
         except Exception as exc:
@@ -195,12 +258,46 @@ class SyncWindow(tk.Toplevel):
 
         self.output = output
         self.engine = engine
-        self.start_button.configure(state="disabled")
-        self.stop_button.configure(state="normal")
-        self.device_combo.configure(state="disabled")
+        self._enter_running()
         self.indicator.configure(text="● PLAY", fg="#008000")
         self.status_var.set(f"Clock → {self.device_var.get()} @ {bpm:g} BPM")
         self._schedule_poll()
+
+    def _start_mpc(self) -> None:
+        device = self._selected_device()
+        if device is None:
+            messagebox.showerror(
+                "MIDI Sync",
+                "Выберите MIDI-вход. Если список пуст, проверьте USB-подключение "
+                "и режим MIDI Port = USB на MPC Sample.",
+                parent=self,
+            )
+            return
+
+        input_device = MidiInput()
+        monitor = ClockMonitor()
+        try:
+            input_device.open(device, monitor.feed)
+            input_device.start()
+        except Exception as exc:
+            input_device.close()
+            messagebox.showerror("MIDI Sync", str(exc), parent=self)
+            return
+
+        self.input = input_device
+        self.monitor = monitor
+        self._enter_running()
+        self.indicator.configure(text="● WAIT", fg="#b36b00")
+        self.status_var.set("Ожидание Start/Clock от MPC Sample…")
+        self._schedule_poll()
+
+    def _enter_running(self) -> None:
+        self.start_button.configure(state="disabled")
+        self.stop_button.configure(state="normal")
+        self.device_combo.configure(state="disabled")
+        self.pc_radio.configure(state="disabled")
+        self.mpc_radio.configure(state="disabled")
+        self.pulse_var.set("Импульсов: 0")
 
     def _stop(self) -> None:
         if self._after_id is not None:
@@ -215,10 +312,24 @@ class SyncWindow(tk.Toplevel):
         if self.output is not None:
             self.output.close()
             self.output = None
+        if self.input is not None:
+            self.input.stop()
+            self.input.close()
+            self.input = None
+        if self.monitor is not None:
+            self.monitor.reset()
+            self.monitor = None
+
         self.start_button.configure(state="normal")
+        self.start_button.configure(
+            text="▶ Start" if self.mode_var.get() == "pc" else "▶ Слушать"
+        )
         self.stop_button.configure(state="disabled")
         self.device_combo.configure(state="readonly")
+        self.pc_radio.configure(state="normal")
+        self.mpc_radio.configure(state="normal")
         self.indicator.configure(text="● STOP", fg="#a00000")
+        self.incoming_var.set("BPM: —")
         self.status_var.set("Остановлено.")
 
     def _apply_bpm(self) -> None:
@@ -244,17 +355,36 @@ class SyncWindow(tk.Toplevel):
     def _poll(self) -> None:
         self._after_id = None
         engine = self.engine
-        if engine is None:
+        if engine is not None:
+            self.pulse_var.set(f"Импульсов: {engine.pulses}")
+            error = engine.last_error
+            if error is not None:
+                self._stop()
+                messagebox.showerror("MIDI Sync", str(error), parent=self)
+                return
+            if not engine.running:
+                self._stop()
+                return
+            self._schedule_poll()
             return
-        self.pulse_var.set(f"Импульсов: {engine.pulses}")
-        error = engine.last_error
-        if error is not None:
-            self._stop()
-            messagebox.showerror("MIDI Sync", str(error), parent=self)
+
+        monitor = self.monitor
+        if monitor is None:
             return
-        if not engine.running:
-            self._stop()
-            return
+        bpm = monitor.bpm
+        self.pulse_var.set(f"Импульсов: {monitor.pulses}")
+        self.incoming_var.set(
+            "BPM: —" if bpm is None else f"BPM: {bpm:.1f}"
+        )
+        if monitor.running:
+            self.indicator.configure(text="● PLAY", fg="#008000")
+            if bpm is not None:
+                self.status_var.set(f"MPC → PC: {bpm:.1f} BPM")
+            else:
+                self.status_var.set("MPC → PC: PLAY")
+        else:
+            self.indicator.configure(text="● WAIT", fg="#b36b00")
+            self.status_var.set("Ожидание Start/Clock от MPC Sample…")
         self._schedule_poll()
 
     def _on_close(self) -> None:
