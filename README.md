@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
 
-**v1.3.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
+**v1.4.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
 Standard MIDI File. Windows GUI, CLI и batch-режим.
 
 [Скачать](https://github.com/cursednik/mpc-xpj-builder/releases) ·
@@ -22,6 +22,7 @@ Standard MIDI File. Windows GUI, CLI и batch-режим.
 - Loop, gain, pan, tune.
 - Batch-сборка нескольких проектов из JSON-манифеста.
 - Браузер проектов и recent projects.
+- Открытие и безопасное сохранение существующего `.xpj`.
 - Drag-and-drop WAV, MIDI, `.xpj` и `map.json` из проводника.
 - Windows installer и portable ZIP.
 
@@ -118,6 +119,18 @@ GUI сохраняет последние папки, MIDI, template, map, им�
 браузера можно перетащить папку с проектами или `.xpj`: папка откроется, а
 перетащенный проект будет выбран в таблице.
 
+Кнопка **«Редактировать…»** открывает существующий `.xpj` в отдельном окне:
+
+- показывает прошивку, BPM, sequence, треки, семплы, число падов с семплами и
+  WAV в `_[ProjectData]`;
+- позволяет изменить название проекта и BPM;
+- **«Сохранить копию…»** создаёт новый `.xpj` и копирует папку ресурсов;
+- **«Перезаписать с backup»** атомарно сохраняет изменения и создаёт
+  `<имя>.xpj.bak`;
+- все остальные поля `.xpj` сохраняются без изменений.
+
+Подробнее: [руководство пользователя](docs/USER_GUIDE.md#редактирование-существующего-проекта).
+
 Кнопка **«Batch…»** открывает окно batch-сборки:
 
 ![Batch-сборка](docs/images/gui-batch.png)
@@ -135,6 +148,32 @@ GUI сохраняет последние папки, MIDI, template, map, им�
 - `.xpj` — эталон;
 - `.json` — карта `--map`.
 
+## Редактирование существующего `.xpj`
+
+Откройте **«Проекты…»**, выберите проект и нажмите **«Редактировать…»**.
+
+![Редактор проекта](docs/images/gui-project-editor.png)
+
+Окно показывает:
+
+- файл, прошивку и platform;
+- название, BPM и sequence;
+- число треков, семплов, падов с семплами;
+- папку `_[ProjectData]` и число WAV в ней.
+
+Можно изменить **название проекта** и **BPM**. Остальные поля `.xpj`
+сохраняются как есть, включая неизвестные для инструмента.
+
+Сохранение:
+
+- **«Сохранить копию…»** — новый `.xpj` и копия папки ресурсов; исходник не
+  меняется;
+- **«Перезаписать с backup»** — атомарная запись, перед ней создаётся
+  `<имя>.xpj.bak`.
+
+Это файловый round-trip, а не совместное редактирование: не открывайте один
+проект одновременно на MPC и в редакторе, чтобы не потерять изменения.
+
 ## Сборка `.exe`
 
 PyInstaller нужен только для сборки, не для работы:
@@ -151,7 +190,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v1.3.0-win64.zip
+dist\mpc-xpj-builder-v1.4.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -163,7 +202,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v1.3.0-setup.exe
+dist\mpc-xpj-builder-v1.4.0-setup.exe
 ```
 
 ## Как получить эталон
@@ -462,8 +501,8 @@ running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
 экспорт с mapped-семплами, `sampleEnd`, `sliceInfo.End`, gain/pan/tune/loop,
 GUI-аргументы, project browser, drag-and-drop routing, pad-based карта,
 extended-ноты, автоназначение, настройки GUI, recent projects, native drag-and-drop,
-пресеты карт, batch GUI, несколько sequence, прослушивание WAV и игнорирование
-лишних WAV. Всего 80 тестов.
+пресеты карт, batch GUI, несколько sequence, прослушивание WAV, round-trip
+существующего `.xpj` и игнорирование лишних WAV. Всего 90 тестов.
 
 ## Статус проверки
 

@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
 from dnd import disable_file_drop, enable_file_drop
+from gui_project_editor import ProjectEditorWindow
 from project_library import ProjectInfo, scan_projects
 
 
@@ -145,13 +146,17 @@ class ProjectBrowserWindow(tk.Toplevel):
             bottom, text="Открыть папку", command=self._open_folder
         )
         self.open_button.pack(side="left")
+        self.edit_button = ttk.Button(
+            bottom, text="Редактировать…", command=self._edit_project
+        )
+        self.edit_button.pack(side="left", padx=6)
         self.template_button = ttk.Button(
             bottom, text="Сделать эталоном", command=self._use_as_template
         )
         self.template_button.pack(side="left", padx=6)
         ttk.Label(
             bottom,
-            text="Можно перетащить папку или .xpj",
+            text="DnD: папка или .xpj",
             foreground="#666666",
         ).pack(side="left", padx=12)
         ttk.Button(bottom, text="Закрыть", command=self.destroy).pack(side="right")
@@ -163,6 +168,7 @@ class ProjectBrowserWindow(tk.Toplevel):
     def _set_buttons(self, enabled: bool) -> None:
         state = "normal" if enabled else "disabled"
         self.open_button.configure(state=state)
+        self.edit_button.configure(state=state)
         self.template_button.configure(state=state)
 
     def _browse(self) -> None:
@@ -233,6 +239,19 @@ class ProjectBrowserWindow(tk.Toplevel):
             os.startfile(str(item.path.parent))  # type: ignore[attr-defined]
         except OSError as exc:
             messagebox.showerror("Не удалось открыть папку", str(exc), parent=self)
+
+    def _edit_project(self) -> None:
+        item = self._selected()
+        if item is None:
+            return
+        if item.error:
+            messagebox.showerror(
+                "Проект",
+                "Этот .xpj не читается и не может быть открыт.",
+                parent=self,
+            )
+            return
+        ProjectEditorWindow(self, path=item.path)
 
     def _use_as_template(self) -> None:
         item = self._selected()

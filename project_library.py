@@ -45,8 +45,17 @@ def _project_info(path: Path) -> ProjectInfo:
         bpm = float(bpm_value) if isinstance(bpm_value, (int, float)) else None
         bars_value = sequence.get("lengthBars")
         bars = int(bars_value) if isinstance(bars_value, int) else 0
-        name = sequence.get("name")
-        if not isinstance(name, str) or not name:
+        name = ""
+        info = data.get("info")
+        if isinstance(info, dict):
+            title = info.get("title")
+            if isinstance(title, str):
+                name = title.strip()
+        if not name:
+            sequence_name = sequence.get("name")
+            if isinstance(sequence_name, str) and sequence_name.strip():
+                name = sequence_name.strip()
+        if not name:
             name = path.stem
         return ProjectInfo(
             path=path,

@@ -7,6 +7,7 @@ from pathlib import Path
 from errors import ValidationError
 from project_library import scan_projects
 from tests.helpers import make_template
+from xpj_writer import read_xpj, write_xpj
 
 
 class ProjectLibraryTests(unittest.TestCase):
@@ -35,6 +36,16 @@ class ProjectLibraryTests(unittest.TestCase):
     def test_missing_folder(self) -> None:
         with self.assertRaises(ValidationError):
             scan_projects(self.root / "missing")
+
+    def test_title_preferred_over_sequence_name(self) -> None:
+        path = self.projects / "Titled.xpj"
+        make_template(path)
+        header, payload, _ = read_xpj(path)
+        payload["data"]["info"]["title"] = "Custom Title"
+        write_xpj(path, header, payload)
+        items = scan_projects(self.projects)
+        item = next(item for item in items if item.path.name == "Titled.xpj")
+        self.assertEqual(item.name, "Custom Title")
 
 
 if __name__ == "__main__":
