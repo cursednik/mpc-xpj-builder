@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
 
-**v1.4.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
+**v1.5.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
 Standard MIDI File. Windows GUI, CLI и batch-режим.
 
 [Скачать](https://github.com/cursednik/mpc-xpj-builder/releases) ·
@@ -17,6 +17,7 @@ Standard MIDI File. Windows GUI, CLI и batch-режим.
 - Pad-based карта на все 128 падов, банки A–H.
 - Редактор карты с автоназначением и `map.json`.
 - Прослушивание WAV прямо в редакторе карты.
+- MIDI Clock Sync: PC — мастер, MPC Sample — слейв.
 - Extended MIDI notes 0–127.
 - Несколько MIDI-файлов превращаются в несколько MPC sequence.
 - Loop, gain, pan, tune.
@@ -131,6 +132,14 @@ GUI сохраняет последние папки, MIDI, template, map, им�
 
 Подробнее: [руководство пользователя](docs/USER_GUIDE.md#редактирование-существующего-проекта).
 
+Кнопка **«Sync…»** открывает окно MIDI-синхронизации:
+
+![MIDI Sync](docs/images/gui-sync.png)
+
+PC отправляет MIDI Clock, Start и Stop; MPC Sample следует за темпом и
+транспортом. Подробная настройка — в разделе
+[«Синхронизация с MPC Sample»](#синхронизация-с-mpc-sample).
+
 Кнопка **«Batch…»** открывает окно batch-сборки:
 
 ![Batch-сборка](docs/images/gui-batch.png)
@@ -174,6 +183,32 @@ GUI сохраняет последние папки, MIDI, template, map, им�
 Это файловый round-trip, а не совместное редактирование: не открывайте один
 проект одновременно на MPC и в редакторе, чтобы не потерять изменения.
 
+## Синхронизация с MPC Sample
+
+Кнопка **«Sync…»** отправляет MIDI Clock, Start и Stop с PC на MPC Sample.
+
+1. Подключите MPC Sample к PC по USB-C.
+2. На MPC: **SHIFT + PAD 8 → MIDI Config**:
+   - `MIDI Port = USB`;
+   - `MIDI Sync In = Midi Clock`;
+   - `MIDI Sync Out = Off`.
+3. В окне **Sync…** выберите MIDI-выход `MPC Sample`.
+4. Укажите BPM и нажмите **▶ Start**.
+5. **■ Stop** останавливает транспорт.
+
+Особенности:
+
+- PC — мастер, MPC — слейв;
+- 24 импульса MIDI Clock на четверть;
+- BPM можно менять на лету;
+- синхронизация не sample-accurate: возможен небольшой джиттер;
+- MIDI Clock синхронизирует транспорт и темп, но не заменяет аудио-синхронизацию
+  и компенсацию задержки.
+
+Если `MPC Sample` не виден в списке MIDI-выходов, проверьте USB-кабель (не
+только зарядный), режим `MIDI Port = USB` и закройте другие приложения,
+которые могли занять MIDI-порт.
+
 ## Сборка `.exe`
 
 PyInstaller нужен только для сборки, не для работы:
@@ -190,7 +225,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v1.4.0-win64.zip
+dist\mpc-xpj-builder-v1.5.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -202,7 +237,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v1.4.0-setup.exe
+dist\mpc-xpj-builder-v1.5.0-setup.exe
 ```
 
 ## Как получить эталон
@@ -502,7 +537,7 @@ running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
 GUI-аргументы, project browser, drag-and-drop routing, pad-based карта,
 extended-ноты, автоназначение, настройки GUI, recent projects, native drag-and-drop,
 пресеты карт, batch GUI, несколько sequence, прослушивание WAV, round-trip
-существующего `.xpj` и игнорирование лишних WAV. Всего 90 тестов.
+существующего `.xpj`, MIDI Clock и игнорирование лишних WAV. Всего 97 тестов.
 
 ## Статус проверки
 

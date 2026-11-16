@@ -18,6 +18,7 @@ from dnd import disable_file_drop, enable_file_drop, route_dropped
 from gui_batch import BatchWindow
 from gui_map import MapEditorWindow
 from gui_projects import ProjectBrowserWindow
+from gui_sync import SyncWindow
 from settings import GuiSettings, load_settings, remember_recent, save_settings
 from validators import MAX_BPM, MIN_BPM
 from version import __version__
@@ -113,6 +114,7 @@ class App:
         self.map_editor: MapEditorWindow | None = None
         self.project_browser: ProjectBrowserWindow | None = None
         self.batch_window: BatchWindow | None = None
+        self.sync_window: SyncWindow | None = None
 
         saved = load_settings()
         self.recent_projects = list(saved.recent_projects)
@@ -136,8 +138,8 @@ class App:
 
     def _build_ui(self) -> None:
         self.root.title(f"MPC XPJ Builder {__version__}")
-        self.root.geometry("920x680")
-        self.root.minsize(760, 560)
+        self.root.geometry("1000x700")
+        self.root.minsize(820, 580)
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
 
@@ -195,7 +197,7 @@ class App:
 
         actions = ttk.Frame(outer)
         actions.grid(row=1, column=0, sticky="ew", pady=(10, 8))
-        for column in range(7):
+        for column in range(8):
             actions.columnconfigure(column, weight=1)
 
         self.plan_button = ttk.Button(
@@ -233,19 +235,26 @@ class App:
         )
         self.batch_button.grid(row=0, column=4, sticky="ew", padx=5)
 
+        self.sync_button = ttk.Button(
+            actions,
+            text="Sync…",
+            command=self._open_sync,
+        )
+        self.sync_button.grid(row=0, column=5, sticky="ew", padx=5)
+
         self.open_button = ttk.Button(
             actions,
             text="Открыть папку",
             command=self._open_output,
         )
-        self.open_button.grid(row=0, column=5, sticky="ew", padx=5)
+        self.open_button.grid(row=0, column=6, sticky="ew", padx=5)
 
         self.clear_button = ttk.Button(
             actions,
             text="Очистить лог",
             command=self._clear_log,
         )
-        self.clear_button.grid(row=0, column=6, sticky="ew", padx=(5, 0))
+        self.clear_button.grid(row=0, column=7, sticky="ew", padx=(5, 0))
 
         log_frame = ttk.LabelFrame(outer, text="Лог", padding=8)
         log_frame.grid(row=2, column=0, sticky="nsew")
@@ -321,6 +330,7 @@ class App:
             self.map_button,
             self.projects_button,
             self.batch_button,
+            self.sync_button,
             self.open_button,
             self.clear_button,
         ):
@@ -467,6 +477,13 @@ class App:
             sample_map=self.map_var.get(),
             extended_notes=self.extended_var.get(),
         )
+
+    def _open_sync(self) -> None:
+        if self.sync_window is not None and self.sync_window.winfo_exists():
+            self.sync_window.lift()
+            self.sync_window.focus_force()
+            return
+        self.sync_window = SyncWindow(self.root, bpm=self.bpm_var.get())
 
     def _save_settings(self, *, show_error: bool) -> None:
         try:
