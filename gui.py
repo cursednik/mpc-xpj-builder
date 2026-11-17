@@ -7,6 +7,7 @@ import io
 import os
 import queue
 import threading
+import time
 import traceback
 import tkinter as tk
 from pathlib import Path
@@ -135,6 +136,9 @@ class App:
 
         self._build_ui()
         enable_file_drop(self.root, self._handle_drop)
+        self._tkdnd_enabled = False
+        self._last_drop_at = 0.0
+        self._enable_tkdnd()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.after(100, self._poll)
 
@@ -527,10 +531,40 @@ class App:
 
     def _on_close(self) -> None:
         self._save_settings(show_error=True)
+        if self._tkdnd_enabled:
+            try:
+                self.root.drop_target_unregister()
+            except Exception:
+                pass
         disable_file_drop(self.root)
         self.root.destroy()
 
+    def _enable_tkdnd(self) -> None:
+        """OLE drop target для Electron/Splice; fallback — WM_DROPFILES."""
+        try:
+            if not hasattr(self.root, "drop_target_register"):
+                return
+            from tkinterdnd2 import DND_FILES
+
+            self.root.drop_target_register(DND_FILES)
+            self.root.dnd_bind("<<Drop>>", self._handle_tkdnd_drop)
+            self._tkdnd_enabled = True
+        except Exception:
+            self._tkdnd_enabled = False
+
+    def _handle_tkdnd_drop(self, event) -> str:
+        try:
+            paths = self.root.tk.splitlist(event.data)
+        except Exception:
+            paths = [event.data]
+        self._handle_drop([str(path) for path in paths])
+        return getattr(event, "action", "copy")
+
     def _handle_drop(self, paths: list[str]) -> None:
+        now = time.monotonic()
+        if now - self._last_drop_at < 0.4:
+            return
+        self._last_drop_at = now
         result = route_dropped(paths)
         changed: list[str] = []
         if result.samples is not None:
@@ -598,8 +632,18 @@ class App:
             messagebox.showerror("Не удалось открыть папку", str(exc))
 
 
+def create_root() -> tk.Tk:
+    """Создать Tk-окно с OLE DnD, если доступен tkinterdnd2."""
+    try:
+        from tkinterdnd2 import TkinterDnD
+
+        return TkinterDnD.Tk()
+    except Exception:
+        return tk.Tk()
+
+
 def main() -> int:
-    root = tk.Tk()
+    root = create_root()
     App(root)
     root.mainloop()
     return 0

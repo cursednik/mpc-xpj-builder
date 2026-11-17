@@ -1,6 +1,6 @@
 # Руководство пользователя
 
-**mpc-xpj-builder 1.9.0** — сборка проектов `.xpj` для **Akai MPC Sample** из
+**mpc-xpj-builder 1.10.0** — сборка проектов `.xpj` для **Akai MPC Sample** из
 папки WAV и одного Standard MIDI File.
 
 Инструмент не пишет формат `.xpj` с нуля: он клонирует эталонный проект,
@@ -13,7 +13,7 @@
 
 ### Вариант A. Установщик
 
-1. Скачайте `mpc-xpj-builder-v1.9.0-setup.exe` со страницы
+1. Скачайте `mpc-xpj-builder-v1.10.0-setup.exe` со страницы
    [Releases](https://github.com/cursednik/mpc-xpj-builder/releases).
 2. Запустите установщик.
 3. Windows может показать предупреждение SmartScreen, потому что установщик не
@@ -24,7 +24,7 @@
 
 ### Вариант B. Портативная версия
 
-1. Скачайте `mpc-xpj-builder-v1.9.0-win64.zip`.
+1. Скачайте `mpc-xpj-builder-v1.10.0-win64.zip`.
 2. Распакуйте архив в любую папку.
 3. Запустите `mpc-xpj-builder-gui.exe`.
 
@@ -283,6 +283,18 @@ GUI запоминает до 10 созданных проектов. Выбер
 поле MIDI через `;`, и каждый станет отдельной sequence.
 
 В окно **«Проекты…»** можно перетащить папку или `.xpj` (см. раздел 4).
+
+### Drag-and-drop из Splice
+
+Поддерживаются OLE drops из Splice Desktop и других Electron-приложений
+(через `tkinterdnd2`), а также обычные drops из проводника.
+
+- Перетащи sample из Splice в главное окно.
+- `.wav` обрабатывается как обычный WAV: в «Папку с WAV» подставляется его
+  папка.
+- Если Splice отдаёт временный файл, проверь путь в поле «Папка с WAV».
+- `tkinterdnd2` входит в installer и portable ZIP; при запуске из исходников
+  установи `pip install -e ".[dnd]"`.
 
 ---
 

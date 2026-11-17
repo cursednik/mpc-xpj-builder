@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
 
-**v1.9.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
+**v1.10.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
 Standard MIDI File. Windows GUI, CLI и batch-режим.
 
 [Скачать](https://github.com/cursednik/mpc-xpj-builder/releases) ·
@@ -26,7 +26,7 @@ Standard MIDI File. Windows GUI, CLI и batch-режим.
 - Batch-сборка нескольких проектов из JSON-манифеста.
 - Браузер проектов и recent projects.
 - Открытие и безопасное сохранение существующего `.xpj`.
-- Drag-and-drop WAV, MIDI, `.xpj` и `map.json` из проводника.
+- Drag-and-drop WAV, MIDI, `.xpj` и `map.json` из проводника и Splice (OLE).
 - Windows installer и portable ZIP.
 
 ## Документация
@@ -62,7 +62,13 @@ Standard MIDI File. Windows GUI, CLI и batch-режим.
 python -m pip install -e ".[audio]"
 ```
 
-В Windows installer и portable ZIP `sounddevice` уже включён.
+Для drag-and-drop из Splice/OLE нужен `tkinterdnd2`:
+
+```powershell
+python -m pip install -e ".[dnd]"
+```
+
+В Windows installer и portable ZIP оба пакета уже включены.
 
 ## Установка как CLI
 
@@ -168,6 +174,14 @@ PC отправляет MIDI Clock, Start и Stop; MPC Sample следует з�
 - `.mid` / `.midi` — MIDI;
 - `.xpj` — эталон;
 - `.json` — карта `--map`.
+
+Поддерживаются как обычные файловые drops, так и **OLE drag-and-drop**
+(Splice Desktop, Electron-приложения). Для OLE используется `tkinterdnd2`; в
+Windows installer/portable он уже включён.
+
+Если перетаскиваешь sample из Splice, приложение получает путь к WAV и
+обрабатывает его как обычный `.wav`. Если Splice отдаёт временный файл,
+проверь, что в поле «Папка с WAV» подставилась нужная папка.
 
 ## Редактирование существующего `.xpj`
 
@@ -328,7 +342,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v1.9.0-win64.zip
+dist\mpc-xpj-builder-v1.10.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -340,7 +354,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v1.9.0-setup.exe
+dist\mpc-xpj-builder-v1.10.0-setup.exe
 ```
 
 ## Как получить эталон
