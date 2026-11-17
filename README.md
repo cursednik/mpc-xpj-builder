@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
 
-**v1.8.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
+**v1.9.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
 Standard MIDI File. Windows GUI, CLI и batch-режим.
 
 [Скачать](https://github.com/cursednik/mpc-xpj-builder/releases) ·
@@ -232,6 +232,17 @@ PC отправляет MIDI Clock, Start и Stop; MPC Sample следует з�
 Это монитор нажатий, а не live-синхронизация назначений. Изменения назначений
 сохраняются в `.xpj` файлово.
 
+### Audition и MIDI Learn
+
+- **Audition** — клик по паду в приложении отправляет MIDI-ноту на MPC, чтобы
+  услышать пад на устройстве. Нужен MIDI-выход `MPC Sample` и на MPC
+  `Pad MIDI In = On`.
+- **MIDI Learn** — выберите WAV в списке, включите `MIDI Learn`, нажмите пад
+  на MPC. WAV назначится на этот пад с текущими `gain`/`pan`/`tune`/`loop`.
+  Затем сохраните проект в `.xpj`.
+
+`Audition` включён по умолчанию; его можно отключить галочкой.
+
 ## Синхронизация с MPC Sample
 
 Кнопка **«Sync…»** умеет работать в двух режимах:
@@ -317,7 +328,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v1.8.0-win64.zip
+dist\mpc-xpj-builder-v1.9.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -329,7 +340,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v1.8.0-setup.exe
+dist\mpc-xpj-builder-v1.9.0-setup.exe
 ```
 
 ## Как получить эталон
@@ -630,7 +641,7 @@ GUI-аргументы, project browser, drag-and-drop routing, pad-based кар
 extended-ноты, автоназначение, настройки GUI, recent projects, native drag-and-drop,
 пресеты карт, batch GUI, несколько sequence, прослушивание WAV, round-trip
 существующего `.xpj`, MIDI Clock, USB Audio, пады проекта и игнорирование
-лишних WAV. Всего 120 тестов.
+лишних WAV. Всего 121 тест.
 
 ## Статус проверки
 

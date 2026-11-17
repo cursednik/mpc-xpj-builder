@@ -15,6 +15,8 @@ from midi_clock import (
     MidiInput,
     MidiOutput,
     decode_note,
+    note_off,
+    note_on,
 )
 
 
@@ -149,6 +151,11 @@ class MidiClockTests(unittest.TestCase):
     def test_decode_note_off_and_clock(self) -> None:
         self.assertIsNone(decode_note(0x80 | (36 << 8) | (40 << 16)))
         self.assertIsNone(decode_note(CLOCK))
+
+    def test_note_message_encoding(self) -> None:
+        self.assertEqual(note_on(36, 100), 0x90 | (36 << 8) | (100 << 16))
+        self.assertEqual(note_off(36), 0x80 | (36 << 8))
+        self.assertEqual(decode_note(note_on(38, 80)), (38, 80))
 
 
 if __name__ == "__main__":

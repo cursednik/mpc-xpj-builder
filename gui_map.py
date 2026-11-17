@@ -13,7 +13,14 @@ import kit_map
 import map_presets
 import project_editor
 from errors import ValidationError
-from midi_clock import MidiDevice, MidiInput, decode_note
+from midi_clock import (
+    MidiDevice,
+    MidiInput,
+    MidiOutput,
+    decode_note,
+    note_off,
+    note_on,
+)
 
 PAD_GRID_ROWS = 4
 
@@ -93,6 +100,11 @@ class MapEditorWindow(tk.Toplevel):
         self.midi_input: MidiInput | None = None
         self.midi_queue: queue.Queue[int] = queue.Queue()
         self._midi_after: str | None = None
+        self.midi_out_devices: tuple[MidiDevice, ...] = ()
+        self.midi_out_map: dict[str, int] = {}
+        self.midi_output: MidiOutput | None = None
+        self._audition_after: str | None = None
+        self._audition_note: int | None = None
 
         self.bank_var = tk.StringVar(value="A")
         self.pad_label_var = tk.StringVar(value="—")
@@ -105,6 +117,9 @@ class MapEditorWindow(tk.Toplevel):
         self.status_var = tk.StringVar(value="Выберите пад и WAV.")
         self.preset_var = tk.StringVar(value="")
         self.midi_var = tk.StringVar(value="")
+        self.midi_out_var = tk.StringVar(value="")
+        self.audition_var = tk.BooleanVar(value=True)
+        self.learn_var = tk.BooleanVar(value=False)
         self.midi_status_var = tk.StringVar(value="Pad MIDI выключен.")
         self.preview = audio_preview.AudioPreview()
         self._preview_after: str | None = None
@@ -151,11 +166,35 @@ class MapEditorWindow(tk.Toplevel):
             command=self._toggle_midi,
         )
         self.midi_button.grid(row=0, column=3, sticky="e", padx=(8, 0))
+        ttk.Label(midi_frame, text="Audition →").grid(
+            row=1, column=0, sticky="w", pady=(4, 0)
+        )
+        self.midi_out_combo = ttk.Combobox(
+            midi_frame,
+            textvariable=self.midi_out_var,
+            state="readonly",
+        )
+        self.midi_out_combo.grid(
+            row=1, column=1, sticky="ew", padx=8, pady=(4, 0)
+        )
+        self.midi_out_combo.bind(
+            "<<ComboboxSelected>>", lambda _event: self._close_midi_output()
+        )
+        ttk.Checkbutton(
+            midi_frame,
+            text="Audition",
+            variable=self.audition_var,
+        ).grid(row=1, column=2, sticky="e", pady=(4, 0))
+        ttk.Checkbutton(
+            midi_frame,
+            text="MIDI Learn",
+            variable=self.learn_var,
+        ).grid(row=1, column=3, sticky="e", padx=(8, 0), pady=(4, 0))
         ttk.Label(
             midi_frame,
             textvariable=self.midi_status_var,
             foreground="#666666",
-        ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(4, 0))
+        ).grid(row=2, column=0, columnspan=4, sticky="w", pady=(4, 0))
 
         paned = ttk.Panedwindow(self, orient="horizontal")
         paned.grid(row=1, column=0, sticky="nsew", padx=10)
@@ -519,6 +558,7 @@ class MapEditorWindow(tk.Toplevel):
             return
         self._refresh_pad_grid()
         self._refresh_details()
+        self._audition_pad(self.selected_pad)
 
     def _refresh_pad_grid(self) -> None:
         bank = self.bank_var.get().strip().upper() or "A"
@@ -642,6 +682,7 @@ class MapEditorWindow(tk.Toplevel):
 
     def destroy(self) -> None:
         self._stop_midi()
+        self._close_midi_output()
         self._stop_preview()
         super().destroy()
 
@@ -931,8 +972,68 @@ class MapEditorWindow(tk.Toplevel):
             parent=self,
         )
 
+    def _ensure_midi_output(self) -> bool:
+        if self.midi_output is not None:
+            return True
+        label = self.midi_out_var.get().strip()
+        index = self.midi_out_map.get(label)
+        if index is None:
+            self.midi_status_var.set(
+                "Выберите MIDI-выход для Audition."
+            )
+            return False
+        output = MidiOutput()
+        try:
+            output.open(index)
+        except Exception as exc:
+            output.close()
+            self.midi_status_var.set(f"Audition недоступен: {exc}")
+            return False
+        self.midi_output = output
+        return True
+
+    def _finish_audition(self) -> None:
+        if self._audition_after is not None:
+            try:
+                self.after_cancel(self._audition_after)
+            except Exception:
+                pass
+            self._audition_after = None
+        if self.midi_output is not None and self._audition_note is not None:
+            try:
+                self.midi_output.send(note_off(self._audition_note))
+            except Exception:
+                pass
+        self._audition_note = None
+
+    def _close_midi_output(self) -> None:
+        self._finish_audition()
+        if self.midi_output is not None:
+            self.midi_output.close()
+            self.midi_output = None
+
+    def _audition_pad(self, pad_index: int | None) -> None:
+        if pad_index is None or not self.audition_var.get():
+            return
+        note = self.pad_to_note.get(pad_index)
+        if note is None:
+            return
+        if not self._ensure_midi_output():
+            return
+        assert self.midi_output is not None
+        try:
+            self.midi_output.send(note_on(note, 100))
+        except Exception as exc:
+            self.midi_status_var.set(f"Audition недоступен: {exc}")
+            self._close_midi_output()
+            return
+        self._finish_audition()
+        self._audition_note = note
+        self._audition_after = self.after(220, self._finish_audition)
+        self.midi_status_var.set(f"Audition: note {note}")
+
     def _refresh_midi_devices(self) -> None:
-        if self.midi_input is not None:
+        if self.midi_input is not None or self.midi_output is not None:
             return
         self.midi_devices = MidiInput.list_devices()
         displays = [f"{device.index}: {device.name}" for device in self.midi_devices]
@@ -951,13 +1052,39 @@ class MapEditorWindow(tk.Toplevel):
                 displays[0],
             )
             self.midi_var.set(preferred)
-            self.midi_status_var.set(
-                f"Найдено MIDI-входов: {len(displays)}. "
-                "На MPC: Pad MIDI Out = Always."
-            )
         else:
             self.midi_var.set("")
-            self.midi_status_var.set("MIDI-входы не найдены.")
+
+        self.midi_out_devices = MidiOutput.list_devices()
+        out_displays = [
+            f"{device.index}: {device.name}"
+            for device in self.midi_out_devices
+        ]
+        self.midi_out_map = {
+            f"{device.index}: {device.name}": device.index
+            for device in self.midi_out_devices
+        }
+        self.midi_out_combo.configure(values=out_displays)
+        if out_displays:
+            preferred_out = next(
+                (
+                    display
+                    for display in out_displays
+                    if "mpc" in display.casefold()
+                ),
+                out_displays[0],
+            )
+            self.midi_out_var.set(preferred_out)
+        else:
+            self.midi_out_var.set("")
+
+        if displays or out_displays:
+            self.midi_status_var.set(
+                f"MIDI: входов {len(displays)}, выходов {len(out_displays)}. "
+                "На MPC: Pad MIDI Out = Always; для Audition — Pad MIDI In = On."
+            )
+        else:
+            self.midi_status_var.set("MIDI-устройства не найдены.")
 
     def _toggle_midi(self) -> None:
         if self.midi_input is not None:
@@ -1013,13 +1140,40 @@ class MapEditorWindow(tk.Toplevel):
             kit_map.BANK_NAMES[pad // kit_map.PADS_PER_BANK]
         )
         self.selected_pad = pad
+        learned: str | None = None
+        if self.learn_var.get():
+            selection = self.tree.selection()
+            if selection:
+                params = self._read_params()
+                if params is not None:
+                    gain, pan, tune, loop = params
+                    relative = selection[0]
+                    self.assignments[pad] = kit_map.PadAssignment(
+                        pad_index=pad,
+                        file=relative,
+                        gain=gain,
+                        pan=pan,
+                        tune=tune,
+                        loop=loop,
+                    )
+                    self._refresh_tree()
+                    learned = relative
         self._refresh_pad_grid()
         self._refresh_details()
         label = kit_map.bank_pad_label(pad)
         self.status_var.set(
             f"MPC: {label} · note {note} · velocity {velocity}"
         )
-        self.midi_status_var.set(f"Pad MIDI: {label} · note {note}")
+        if learned is not None:
+            self.midi_status_var.set(
+                f"MIDI Learn: {learned} → {label}"
+            )
+        elif self.learn_var.get():
+            self.midi_status_var.set(
+                f"MIDI Learn: выбран {label}; выберите WAV в списке."
+            )
+        else:
+            self.midi_status_var.set(f"Pad MIDI: {label} · note {note}")
 
     def _stop_midi(self) -> None:
         if self._midi_after is not None:

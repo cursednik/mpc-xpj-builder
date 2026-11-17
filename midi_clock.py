@@ -35,6 +35,14 @@ def decode_note(message: int) -> tuple[int, int] | None:
     return note, velocity
 
 
+def note_on(note: int, velocity: int = 100, channel: int = 0) -> int:
+    return 0x90 | (channel & 0x0F) | ((note & 0x7F) << 8) | ((velocity & 0x7F) << 16)
+
+
+def note_off(note: int, channel: int = 0) -> int:
+    return 0x80 | (channel & 0x0F) | ((note & 0x7F) << 8)
+
+
 @dataclass(frozen=True)
 class MidiDevice:
     index: int
@@ -160,7 +168,7 @@ class MidiOutput:
     def send(self, status: int) -> None:
         if self._handle is None or self._winmm is None:
             raise RuntimeError("MIDI-выход не открыт.")
-        result = self._winmm.midiOutShortMsg(self._handle, status & 0xFF)
+        result = self._winmm.midiOutShortMsg(self._handle, status & 0xFFFFFF)
         if result != 0:
             raise RuntimeError(self._error_text(result))
 
