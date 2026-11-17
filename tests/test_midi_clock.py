@@ -14,6 +14,7 @@ from midi_clock import (
     ClockMonitor,
     MidiInput,
     MidiOutput,
+    decode_note,
 )
 
 
@@ -136,6 +137,18 @@ class MidiClockTests(unittest.TestCase):
         input_device = MidiInput()
         with self.assertRaises(RuntimeError):
             input_device.open(9999, lambda status: None)
+
+    def test_decode_note_on(self) -> None:
+        message = 0x90 | (36 << 8) | (100 << 16)
+        self.assertEqual(decode_note(message), (36, 100))
+
+    def test_decode_note_on_zero_velocity_is_note_off(self) -> None:
+        message = 0x90 | (36 << 8)
+        self.assertIsNone(decode_note(message))
+
+    def test_decode_note_off_and_clock(self) -> None:
+        self.assertIsNone(decode_note(0x80 | (36 << 8) | (40 << 16)))
+        self.assertIsNone(decode_note(CLOCK))
 
 
 if __name__ == "__main__":

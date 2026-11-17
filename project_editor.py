@@ -11,8 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from errors import ExportError, ValidationError
+from kit_map import PadAssignment
+from sample_map import PadBinding
 from validators import validate_bpm
-from xpj_schema import float32
+from wav_pool import PoolSample, inspect_wav
+from xpj_schema import _assign_layer, _clear_instrument, float32
 from xpj_writer import XPJHeader, read_xpj, write_xpj
 
 DATA_DIR_SUFFIX = "_[ProjectData]"
@@ -145,6 +148,133 @@ def _count_assigned_pads(instruments: list[dict[str, Any]]) -> int:
         ):
             assigned += 1
     return assigned
+
+
+def _first_assigned_layer(instrument: dict[str, Any]) -> dict[str, Any] | None:
+    layers = instrument.get("layersv")
+    if not isinstance(layers, list):
+        return None
+    for layer in layers:
+        if isinstance(layer, dict) and layer.get("sampleFile"):
+            return layer
+    return None
+
+
+def read_pad_assignments(payload: dict[str, Any]) -> dict[int, PadAssignment]:
+    """Прочитать назначения падов из существующего проекта."""
+    data = _require_data(payload)
+    instruments = _drum_instruments(data)
+    assignments: dict[int, PadAssignment] = {}
+    for pad_index, instrument in enumerate(instruments):
+        layer = _first_assigned_layer(instrument)
+        if layer is None:
+            continue
+        file = layer.get("sampleFile")
+        if not isinstance(file, str) or not file:
+            continue
+        volume = layer.get("volume")
+        gain = 1.0
+        if isinstance(volume, dict):
+            value = volume.get("gainCoefficient")
+            if isinstance(value, (int, float)):
+                gain = float(value)
+        pan_value = layer.get("pan")
+        pan = float(pan_value) if isinstance(pan_value, (int, float)) else 0.5
+        tune_value = layer.get("pitch")
+        if not isinstance(tune_value, (int, float)):
+            coarse = layer.get("coarseTune", 0)
+            fine = layer.get("fineTune", 0)
+            tune_value = (
+                (coarse if isinstance(coarse, (int, float)) else 0)
+                + (fine if isinstance(fine, (int, float)) else 0) / 100.0
+            )
+        loop = (
+            instrument.get("triggerMode") == 3
+            or layer.get("loopMode") == 1
+            or bool(layer.get("loop"))
+        )
+        assignments[pad_index] = PadAssignment(
+            pad_index=pad_index,
+            file=file,
+            gain=gain,
+            pan=pan,
+            tune=float(tune_value),
+            loop=bool(loop),
+        )
+    return assignments
+
+
+def apply_pad_assignments(
+    payload: dict[str, Any],
+    assignments: dict[int, PadAssignment],
+    data_dir: Path | None,
+) -> dict[str, Any]:
+    """Записать назначения падов в существующий проект."""
+    result = copy.deepcopy(payload)
+    data = _require_data(result)
+    instruments = _drum_instruments(data)
+
+    sample_paths: set[str] = set()
+    samples = data.get("samples")
+    if isinstance(samples, list):
+        for entry in samples:
+            if isinstance(entry, dict):
+                path = entry.get("path")
+                if isinstance(path, str) and path:
+                    sample_paths.add(path)
+
+    for pad_index, instrument in enumerate(instruments):
+        assignment = assignments.get(pad_index)
+        if assignment is None:
+            _clear_instrument(instrument)
+            instrument["triggerMode"] = 0
+            continue
+        if data_dir is None:
+            raise ValidationError(
+                "Для изменения падов нужна папка ресурсов _[ProjectData]."
+            )
+        file_path = Path(data_dir) / assignment.file
+        if not file_path.is_file():
+            raise ValidationError(f"WAV не найден: {file_path}")
+        if sample_paths and assignment.file not in sample_paths:
+            raise ValidationError(
+                f"WAV {assignment.file!r} не входит в список samples проекта."
+            )
+        try:
+            info = inspect_wav(file_path)
+        except Exception as exc:
+            raise ValidationError(
+                f"Не удалось прочитать WAV {file_path}: {exc}"
+            ) from exc
+        sample = PoolSample(
+            source=file_path,
+            output_name=assignment.file,
+            display_name=Path(assignment.file).stem,
+            info=info,
+        )
+        binding = PadBinding(
+            sample=sample,
+            pad_index=pad_index,
+            midi_note=None,
+            gain=assignment.gain,
+            pan=assignment.pan,
+            tune=assignment.tune,
+            loop=assignment.loop,
+        )
+        layers = instrument.get("layersv")
+        if not isinstance(layers, list) or not layers:
+            raise ValidationError(
+                f"У пада {pad_index + 1} нет layersv."
+            )
+        layer = next(
+            (item for item in layers if isinstance(item, dict)),
+            None,
+        )
+        if layer is None:
+            raise ValidationError(f"У пада {pad_index + 1} нет слоя.")
+        _assign_layer(layer, binding)
+        instrument["triggerMode"] = 3 if assignment.loop else 0
+    return result
 
 
 def _project_title(data: dict[str, Any], sequences: list[dict[str, Any]], path: Path) -> str:

@@ -145,7 +145,7 @@ class AudioWindow(tk.Toplevel):
             self.output_combo.configure(values=("Не мониторить",))
             self.input_var.set("")
             self.output_var.set("Не мониторить")
-            self.status_var.set(str(exc))
+            self.status_var.set(audio_io.friendly_error(exc))
             return
 
         inputs = [device for device in self.devices if device.is_input]
@@ -314,7 +314,9 @@ class AudioWindow(tk.Toplevel):
         if session.error is not None:
             error = session.error
             self._stop()
-            messagebox.showerror("USB Audio", str(error), parent=self)
+            messagebox.showerror(
+                "USB Audio", audio_io.friendly_error(error), parent=self
+            )
             return
         if not session.running:
             self._stop()

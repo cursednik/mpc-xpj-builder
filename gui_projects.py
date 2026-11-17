@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
 from dnd import disable_file_drop, enable_file_drop
+from gui_map import MapEditorWindow
 from gui_project_editor import ProjectEditorWindow
 from project_library import ProjectInfo, scan_projects
 
@@ -150,6 +151,10 @@ class ProjectBrowserWindow(tk.Toplevel):
             bottom, text="Редактировать…", command=self._edit_project
         )
         self.edit_button.pack(side="left", padx=6)
+        self.pads_button = ttk.Button(
+            bottom, text="Пады…", command=self._open_pads
+        )
+        self.pads_button.pack(side="left", padx=6)
         self.template_button = ttk.Button(
             bottom, text="Сделать эталоном", command=self._use_as_template
         )
@@ -169,6 +174,7 @@ class ProjectBrowserWindow(tk.Toplevel):
         state = "normal" if enabled else "disabled"
         self.open_button.configure(state=state)
         self.edit_button.configure(state=state)
+        self.pads_button.configure(state=state)
         self.template_button.configure(state=state)
 
     def _browse(self) -> None:
@@ -252,6 +258,22 @@ class ProjectBrowserWindow(tk.Toplevel):
             )
             return
         ProjectEditorWindow(self, path=item.path)
+
+    def _open_pads(self) -> None:
+        item = self._selected()
+        if item is None:
+            return
+        if item.error:
+            messagebox.showerror(
+                "Пады",
+                "Этот .xpj не читается, пады открыть нельзя.",
+                parent=self,
+            )
+            return
+        try:
+            MapEditorWindow(self, project_path=item.path)
+        except Exception as exc:
+            messagebox.showerror("Пады", str(exc), parent=self)
 
     def _use_as_template(self) -> None:
         item = self._selected()

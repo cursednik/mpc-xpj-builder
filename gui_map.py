@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import queue
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
@@ -10,7 +11,9 @@ from typing import Callable, Sequence
 import audio_preview
 import kit_map
 import map_presets
+import project_editor
 from errors import ValidationError
+from midi_clock import MidiDevice, MidiInput, decode_note
 
 PAD_GRID_ROWS = 4
 
@@ -46,27 +49,50 @@ class MapEditorWindow(tk.Toplevel):
         self,
         master: tk.Misc,
         *,
-        samples_provider: Callable[[], str],
-        template_provider: Callable[[], str],
-        on_saved: Callable[[Path], None],
+        samples_provider: Callable[[], str] | None = None,
+        template_provider: Callable[[], str] | None = None,
+        on_saved: Callable[[Path], None] | None = None,
+        project_path: Path | None = None,
     ) -> None:
         super().__init__(master)
-        self.title("MPC XPJ Builder — карта семплов")
-        self.geometry("1120x800")
-        self.minsize(900, 660)
+        self.project_path = Path(project_path) if project_path else None
+        self.project_header = None
+        self.project_payload = None
+        self.project_summary = None
+        self.project_samples_dir: Path | None = None
+        self.assignments: dict[int, kit_map.PadAssignment] = {}
+        if self.project_path is not None:
+            (
+                self.project_header,
+                self.project_payload,
+                self.project_summary,
+            ) = project_editor.read_project(self.project_path)
+            self.project_samples_dir = self.project_summary.data_dir
+            self.assignments = project_editor.read_pad_assignments(
+                self.project_payload
+            )
+            self.title("MPC XPJ Builder — пады проекта")
+        else:
+            self.title("MPC XPJ Builder — карта семплов")
+        self.geometry("1120x840")
+        self.minsize(900, 700)
         self.transient(master.winfo_toplevel())
-        self.samples_provider = samples_provider
-        self.template_provider = template_provider
-        self.on_saved = on_saved
+        self.samples_provider = samples_provider or (lambda: "")
+        self.template_provider = template_provider or (lambda: "")
+        self.on_saved = on_saved or (lambda path: None)
 
         self.items: tuple[kit_map.WavItem, ...] = ()
-        self.assignments: dict[int, kit_map.PadAssignment] = {}
         self.pad_to_note: dict[int, int] = kit_map.default_pad_to_note()
         self.note_to_pad: dict[int, int] = {
             note: pad for pad, note in self.pad_to_note.items()
         }
         self.selected_pad: int | None = None
         self.pad_buttons: dict[int, tk.Button] = {}
+        self.midi_devices: tuple[MidiDevice, ...] = ()
+        self.midi_map: dict[str, int] = {}
+        self.midi_input: MidiInput | None = None
+        self.midi_queue: queue.Queue[int] = queue.Queue()
+        self._midi_after: str | None = None
 
         self.bank_var = tk.StringVar(value="A")
         self.pad_label_var = tk.StringVar(value="—")
@@ -78,12 +104,15 @@ class MapEditorWindow(tk.Toplevel):
         self.loop_var = tk.BooleanVar(value=False)
         self.status_var = tk.StringVar(value="Выберите пад и WAV.")
         self.preset_var = tk.StringVar(value="")
+        self.midi_var = tk.StringVar(value="")
+        self.midi_status_var = tk.StringVar(value="Pad MIDI выключен.")
         self.preview = audio_preview.AudioPreview()
         self._preview_after: str | None = None
 
         self._build_ui()
         self._load_note_map()
         self.refresh()
+        self._refresh_midi_devices()
 
     def _build_ui(self) -> None:
         self.columnconfigure(0, weight=1)
@@ -102,6 +131,31 @@ class MapEditorWindow(tk.Toplevel):
             top,
             text="Все 128 падов доступны для загрузки семплов; MIDI-sequence может играть любые ноты при --extended-notes.",
         ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 0))
+
+        midi_frame = ttk.Frame(top)
+        midi_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+        midi_frame.columnconfigure(1, weight=1)
+        ttk.Label(midi_frame, text="Pad MIDI:").grid(row=0, column=0, sticky="w")
+        self.midi_combo = ttk.Combobox(
+            midi_frame,
+            textvariable=self.midi_var,
+            state="readonly",
+        )
+        self.midi_combo.grid(row=0, column=1, sticky="ew", padx=8)
+        ttk.Button(
+            midi_frame, text="Обновить", command=self._refresh_midi_devices
+        ).grid(row=0, column=2, sticky="e")
+        self.midi_button = ttk.Button(
+            midi_frame,
+            text="▶ Слушать пады",
+            command=self._toggle_midi,
+        )
+        self.midi_button.grid(row=0, column=3, sticky="e", padx=(8, 0))
+        ttk.Label(
+            midi_frame,
+            textvariable=self.midi_status_var,
+            foreground="#666666",
+        ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(4, 0))
 
         paned = ttk.Panedwindow(self, orient="horizontal")
         paned.grid(row=1, column=0, sticky="nsew", padx=10)
@@ -275,6 +329,17 @@ class MapEditorWindow(tk.Toplevel):
         ttk.Button(bottom, text="Сохранить и применить", command=self._save_and_apply).pack(
             side="left"
         )
+        if self.project_path is not None:
+            ttk.Button(
+                bottom,
+                text="Сохранить в .xpj",
+                command=self._save_project,
+            ).pack(side="left", padx=(12, 0))
+            ttk.Button(
+                bottom,
+                text="Копия .xpj…",
+                command=self._save_project_copy,
+            ).pack(side="left", padx=(6, 0))
         ttk.Button(bottom, text="Закрыть", command=self.destroy).pack(side="right")
         ttk.Label(bottom, textvariable=self.status_var).pack(
             side="right", padx=(0, 12)
@@ -364,6 +429,8 @@ class MapEditorWindow(tk.Toplevel):
         self.status_var.set(f"Пресет удалён: {preset.name}")
 
     def _samples_dir(self) -> Path | None:
+        if self.project_path is not None:
+            return self.project_samples_dir
         raw = self.samples_provider().strip()
         if not raw:
             return None
@@ -371,8 +438,11 @@ class MapEditorWindow(tk.Toplevel):
         return path if path.is_dir() else None
 
     def _load_note_map(self) -> None:
-        template_raw = self.template_provider().strip()
-        template = Path(template_raw) if template_raw else None
+        if self.project_path is not None:
+            template = self.project_path
+        else:
+            template_raw = self.template_provider().strip()
+            template = Path(template_raw) if template_raw else None
         self.pad_to_note, error = kit_map.pad_to_note_from_template(template)
         self.note_to_pad = {note: pad for pad, note in self.pad_to_note.items()}
         if error:
@@ -571,6 +641,7 @@ class MapEditorWindow(tk.Toplevel):
         self.status_var.set("Прослушивание остановлено.")
 
     def destroy(self) -> None:
+        self._stop_midi()
         self._stop_preview()
         super().destroy()
 
@@ -775,3 +846,192 @@ class MapEditorWindow(tk.Toplevel):
 
     def _save_and_apply(self) -> None:
         self._save_map(apply=True)
+
+    def _project_payload_with_assignments(self) -> dict | None:
+        if self.project_payload is None:
+            return None
+        try:
+            return project_editor.apply_pad_assignments(
+                self.project_payload,
+                self.assignments,
+                self.project_samples_dir,
+            )
+        except Exception as exc:
+            messagebox.showerror("Проект", str(exc), parent=self)
+            return None
+
+    def _reload_project(self) -> None:
+        if self.project_path is None:
+            return
+        (
+            self.project_header,
+            self.project_payload,
+            self.project_summary,
+        ) = project_editor.read_project(self.project_path)
+        self.project_samples_dir = self.project_summary.data_dir
+        self.assignments = project_editor.read_pad_assignments(
+            self.project_payload
+        )
+        self.refresh()
+
+    def _save_project(self) -> None:
+        if self.project_path is None or self.project_payload is None:
+            return
+        payload = self._project_payload_with_assignments()
+        if payload is None:
+            return
+        try:
+            _path, backup = project_editor.save_project_in_place(
+                self.project_path,
+                self.project_header,
+                payload,
+            )
+        except Exception as exc:
+            messagebox.showerror("Проект", str(exc), parent=self)
+            return
+        self._reload_project()
+        self.status_var.set(f"Сохранено в .xpj. Backup: {backup.name}")
+        messagebox.showinfo(
+            "Проект",
+            f"Пады сохранены в:\n{self.project_path}\n\nBackup:\n{backup}",
+            parent=self,
+        )
+
+    def _save_project_copy(self) -> None:
+        if self.project_path is None or self.project_payload is None:
+            return
+        payload = self._project_payload_with_assignments()
+        if payload is None:
+            return
+        target = filedialog.asksaveasfilename(
+            parent=self,
+            title="Сохранить копию проекта",
+            defaultextension=".xpj",
+            initialdir=str(self.project_path.parent),
+            initialfile=f"{self.project_path.stem} copy.xpj",
+            filetypes=[("XPJ project", "*.xpj"), ("All files", "*.*")],
+        )
+        if not target:
+            return
+        try:
+            xpj_path, data_path = project_editor.save_project_copy(
+                self.project_path,
+                Path(target),
+                self.project_header,
+                payload,
+            )
+        except Exception as exc:
+            messagebox.showerror("Проект", str(exc), parent=self)
+            return
+        self.status_var.set(f"Копия сохранена: {xpj_path.name}")
+        messagebox.showinfo(
+            "Копия сохранена",
+            f"XPJ:\n{xpj_path}\n\n"
+            f"ProjectData:\n{data_path if data_path else 'нет папки ресурсов'}",
+            parent=self,
+        )
+
+    def _refresh_midi_devices(self) -> None:
+        if self.midi_input is not None:
+            return
+        self.midi_devices = MidiInput.list_devices()
+        displays = [f"{device.index}: {device.name}" for device in self.midi_devices]
+        self.midi_map = {
+            f"{device.index}: {device.name}": device.index
+            for device in self.midi_devices
+        }
+        self.midi_combo.configure(values=displays)
+        if displays:
+            preferred = next(
+                (
+                    display
+                    for display in displays
+                    if "mpc" in display.casefold()
+                ),
+                displays[0],
+            )
+            self.midi_var.set(preferred)
+            self.midi_status_var.set(
+                f"Найдено MIDI-входов: {len(displays)}. "
+                "На MPC: Pad MIDI Out = Always."
+            )
+        else:
+            self.midi_var.set("")
+            self.midi_status_var.set("MIDI-входы не найдены.")
+
+    def _toggle_midi(self) -> None:
+        if self.midi_input is not None:
+            self._stop_midi()
+            return
+        label = self.midi_var.get().strip()
+        index = self.midi_map.get(label)
+        if index is None:
+            messagebox.showerror(
+                "Pad MIDI",
+                "Выберите MIDI-вход. На MPC включите Pad MIDI Out = Always.",
+                parent=self,
+            )
+            return
+        midi_input = MidiInput()
+        try:
+            midi_input.open(index, self._on_midi_message)
+            midi_input.start()
+        except Exception as exc:
+            midi_input.close()
+            messagebox.showerror("Pad MIDI", str(exc), parent=self)
+            return
+        self.midi_input = midi_input
+        self.midi_button.configure(text="■ Стоп")
+        self.midi_combo.configure(state="disabled")
+        self.midi_status_var.set(f"Слушаю пады: {label}")
+        self._midi_after = self.after(50, self._poll_midi)
+
+    def _on_midi_message(self, message: int) -> None:
+        self.midi_queue.put(message)
+
+    def _poll_midi(self) -> None:
+        self._midi_after = None
+        while True:
+            try:
+                message = self.midi_queue.get_nowait()
+            except queue.Empty:
+                break
+            note = decode_note(message)
+            if note is not None:
+                self._mirror_pad(*note)
+        if self.midi_input is not None:
+            self._midi_after = self.after(50, self._poll_midi)
+
+    def _mirror_pad(self, note: int, velocity: int) -> None:
+        pad = self.note_to_pad.get(note)
+        if pad is None:
+            self.midi_status_var.set(
+                f"MIDI note {note} · velocity {velocity} (нет такого пада)"
+            )
+            return
+        self.bank_var.set(
+            kit_map.BANK_NAMES[pad // kit_map.PADS_PER_BANK]
+        )
+        self.selected_pad = pad
+        self._refresh_pad_grid()
+        self._refresh_details()
+        label = kit_map.bank_pad_label(pad)
+        self.status_var.set(
+            f"MPC: {label} · note {note} · velocity {velocity}"
+        )
+        self.midi_status_var.set(f"Pad MIDI: {label} · note {note}")
+
+    def _stop_midi(self) -> None:
+        if self._midi_after is not None:
+            try:
+                self.after_cancel(self._midi_after)
+            except Exception:
+                pass
+            self._midi_after = None
+        if self.midi_input is not None:
+            self.midi_input.stop()
+            self.midi_input.close()
+            self.midi_input = None
+        self.midi_button.configure(text="▶ Слушать пады")
+        self.midi_combo.configure(state="readonly")
+        self.midi_status_var.set("Pad MIDI выключен.")

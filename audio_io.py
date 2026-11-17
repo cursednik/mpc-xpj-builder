@@ -37,6 +37,11 @@ def dependency_available() -> bool:
     return importlib.util.find_spec("sounddevice") is not None
 
 
+def is_blocking_compatible(hostapi: str) -> bool:
+    """WDM-KS не поддерживает blocking read/write в PortAudio."""
+    return "wdm-ks" not in hostapi.casefold()
+
+
 def list_devices() -> tuple[AudioDevice, ...]:
     """Список аудиоустройств Windows. Требует sounddevice."""
     if not dependency_available():
@@ -55,6 +60,9 @@ def list_devices() -> tuple[AudioDevice, ...]:
                 if 0 <= hostapi_index < len(host_apis)
                 else ""
             )
+            # WDM-KS не поддерживает blocking read, который использует AudioSession.
+            if not is_blocking_compatible(str(hostapi)):
+                continue
             devices.append(
                 AudioDevice(
                     index=index,
@@ -68,6 +76,22 @@ def list_devices() -> tuple[AudioDevice, ...]:
     except Exception as exc:
         raise RuntimeError(f"Не удалось получить аудиоустройства: {exc}") from exc
     return tuple(devices)
+
+
+def friendly_error(error: Exception) -> str:
+    """Понятное сообщение для типовых ошибок PortAudio."""
+    text = str(error)
+    if "Blocking API not supported" in text:
+        return (
+            "Это аудиоустройство WDM-KS не поддерживает blocking API. "
+            "Выберите вход или выход с пометкой Windows WASAPI."
+        )
+    if "Invalid sample rate" in text:
+        return (
+            "Устройство не поддерживает выбранную частоту. "
+            "Выберите 44100 или 48000 Hz."
+        )
+    return text
 
 
 def pick_mpc_input(devices: tuple[AudioDevice, ...]) -> AudioDevice | None:

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
 
-**v1.7.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
+**v1.8.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
 Standard MIDI File. Windows GUI, CLI и batch-режим.
 
 [Скачать](https://github.com/cursednik/mpc-xpj-builder/releases) ·
@@ -19,6 +19,7 @@ Standard MIDI File. Windows GUI, CLI и batch-режим.
 - Прослушивание WAV прямо в редакторе карты.
 - MIDI Clock Sync в обе стороны: PC → MPC и MPC → PC.
 - USB Audio: запись WAV и мониторинг MPC Sample.
+- Живой MIDI-монитор падов и редактирование падов существующего `.xpj`.
 - Extended MIDI notes 0–127.
 - Несколько MIDI-файлов превращаются в несколько MPC sequence.
 - Loop, gain, pan, tune.
@@ -139,6 +140,8 @@ GUI сохраняет последние папки, MIDI, template, map, им�
   `<имя>.xpj.bak`;
 - все остальные поля `.xpj` сохраняются без изменений.
 
+Кнопка **«Пады…»** открывает редактор падов этого проекта.
+
 Подробнее: [руководство пользователя](docs/USER_GUIDE.md#редактирование-существующего-проекта).
 
 Кнопка **«Sync…»** открывает окно MIDI-синхронизации:
@@ -191,6 +194,43 @@ PC отправляет MIDI Clock, Start и Stop; MPC Sample следует з�
 
 Это файловый round-trip, а не совместное редактирование: не открывайте один
 проект одновременно на MPC и в редакторе, чтобы не потерять изменения.
+
+## Редактирование падов существующего проекта
+
+В **«Проекты…»** выберите проект и нажмите **«Пады…»**.
+
+![Редактор падов проекта](docs/images/gui-pad-editor.png)
+
+Редактор использует папку `_[ProjectData]` проекта:
+
+- показывает все пады банков A–H;
+- подставляет текущие назначения из `.xpj`;
+- позволяет назначить WAV из папки ресурсов, снять назначение, изменить
+  `gain`, `pan`, `tune`, `loop`;
+- поддерживает автоназначение и пресеты;
+- **«Сохранить в .xpj»** пишет изменения с backup `<имя>.xpj.bak`;
+- **«Копия .xpj…»** создаёт новый проект и копирует папку ресурсов.
+
+Ограничения:
+
+- меняются только pad-назначения и параметры падов;
+- WAV должен уже входить в `samples` проекта; добавление новых файлов в
+  существующий `.xpj` пока не поддерживается;
+- изменения не отправляются на MPC в реальном времени — проект нужно
+  перезагрузить на устройстве.
+
+### Живой Pad MIDI
+
+В редакторе падов есть **Pad MIDI**:
+
+1. На MPC: `Pad MIDI Out = Always`, `MIDI Port = USB`.
+2. Выберите MIDI-вход `MPC Sample`.
+3. Нажмите **▶ Слушать пады**.
+4. Нажимайте пады на MPC — соответствующий пад подсвечивается в приложении,
+   показываются note и velocity.
+
+Это монитор нажатий, а не live-синхронизация назначений. Изменения назначений
+сохраняются в `.xpj` файлово.
 
 ## Синхронизация с MPC Sample
 
@@ -257,8 +297,9 @@ PC отправляет MIDI Clock, Start и Stop; MPC Sample следует з�
 
 - один стереопоток, без многодорожечной записи;
 - без ASIO и без компенсации задержки;
-- запись идёт через WASAPI/MME PortAudio; если выбрана неподдерживаемая
-  частота, появляется `Invalid sample rate` — выберите другую.
+- запись идёт через WASAPI/MME PortAudio; WDM-KS исключён, потому что не
+  поддерживает blocking API; если выбрана неподдерживаемая частота, появляется
+  `Invalid sample rate` — выберите другую.
 
 ## Сборка `.exe`
 
@@ -276,7 +317,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v1.7.0-win64.zip
+dist\mpc-xpj-builder-v1.8.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -288,7 +329,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v1.7.0-setup.exe
+dist\mpc-xpj-builder-v1.8.0-setup.exe
 ```
 
 ## Как получить эталон
@@ -588,8 +629,8 @@ running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
 GUI-аргументы, project browser, drag-and-drop routing, pad-based карта,
 extended-ноты, автоназначение, настройки GUI, recent projects, native drag-and-drop,
 пресеты карт, batch GUI, несколько sequence, прослушивание WAV, round-trip
-существующего `.xpj`, MIDI Clock, USB Audio и игнорирование лишних WAV.
-Всего 110 тестов.
+существующего `.xpj`, MIDI Clock, USB Audio, пады проекта и игнорирование
+лишних WAV. Всего 120 тестов.
 
 ## Статус проверки
 

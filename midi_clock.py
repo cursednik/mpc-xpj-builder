@@ -23,6 +23,18 @@ MIM_DATA = 0x3C3
 CALLBACK_FUNCTION = 0x00030000
 
 
+def decode_note(message: int) -> tuple[int, int] | None:
+    """Вернуть (note, velocity) для note-on; note-off и прочее игнорируются."""
+    status = message & 0xFF
+    if status & 0xF0 != 0x90:
+        return None
+    note = (message >> 8) & 0x7F
+    velocity = (message >> 16) & 0x7F
+    if velocity == 0:
+        return None
+    return note, velocity
+
+
 @dataclass(frozen=True)
 class MidiDevice:
     index: int
@@ -319,11 +331,11 @@ class MidiInput:
     ) -> None:
         if message != MIM_DATA:
             return
-        status = int(param1) & 0xFF
+        data = int(param1) & 0xFFFFFF
         callback = self._on_message
         if callback is not None:
             try:
-                callback(status)
+                callback(data)
             except Exception:
                 pass
 
@@ -359,6 +371,7 @@ class ClockMonitor:
 
     def feed(self, status: int) -> None:
         now = self._clock()
+        status = status & 0xFF
         with self._lock:
             if status == START:
                 self._running = True

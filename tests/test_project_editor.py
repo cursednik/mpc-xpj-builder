@@ -7,14 +7,17 @@ import unittest
 from pathlib import Path
 
 from errors import ValidationError
+from kit_map import PadAssignment
 from project_editor import (
     apply_metadata,
+    apply_pad_assignments,
     data_dir_for,
+    read_pad_assignments,
     read_project,
     save_project_copy,
     save_project_in_place,
 )
-from tests.helpers import make_template
+from tests.helpers import make_template, write_wav
 from xpj_writer import read_xpj, write_xpj
 
 
@@ -29,11 +32,12 @@ class ProjectEditorTests(unittest.TestCase):
         payload["customRoot"] = {"keep": [1, 2, 3]}
         payload["data"]["customData"] = "unchanged"
         payload["data"]["info"]["title"] = "Original Title"
+        payload["data"]["samples"] = [{"path": "kick.wav"}]
         write_xpj(self.source, header, payload)
 
         self.source_data = data_dir_for(self.source)
         self.source_data.mkdir()
-        (self.source_data / "kick.wav").write_bytes(b"RIFF")
+        write_wav(self.source_data / "kick.wav")
 
     def test_summary(self) -> None:
         header, payload, summary = read_project(self.source)
@@ -85,6 +89,55 @@ class ProjectEditorTests(unittest.TestCase):
         self.assertEqual(
             updated["data"]["sequences"][0]["value"]["name"], "Custom Sequence"
         )
+
+    def test_pad_assignments_roundtrip(self) -> None:
+        _header, payload, _summary = read_project(self.source)
+        assignments = {
+            0: PadAssignment(
+                pad_index=0,
+                file="kick.wav",
+                gain=0.8,
+                pan=0.4,
+                tune=2.5,
+                loop=True,
+            )
+        }
+        updated = apply_pad_assignments(payload, assignments, self.source_data)
+        loaded = read_pad_assignments(updated)
+        self.assertIn(0, loaded)
+        self.assertEqual(loaded[0].file, "kick.wav")
+        self.assertAlmostEqual(loaded[0].gain, 0.8)
+        self.assertAlmostEqual(loaded[0].pan, 0.4)
+        self.assertAlmostEqual(loaded[0].tune, 2.5)
+        self.assertTrue(loaded[0].loop)
+        self.assertEqual(updated["data"]["customData"], "unchanged")
+        self.assertEqual(payload["data"]["customData"], "unchanged")
+
+    def test_pad_assignment_can_be_cleared(self) -> None:
+        _header, payload, _summary = read_project(self.source)
+        assignments = {
+            0: PadAssignment(pad_index=0, file="kick.wav"),
+        }
+        updated = apply_pad_assignments(payload, assignments, self.source_data)
+        cleared = apply_pad_assignments(updated, {}, self.source_data)
+        self.assertEqual(read_pad_assignments(cleared), {})
+
+    def test_pad_assignment_requires_existing_sample(self) -> None:
+        _header, payload, _summary = read_project(self.source)
+        assignments = {
+            0: PadAssignment(pad_index=0, file="missing.wav"),
+        }
+        with self.assertRaises(ValidationError):
+            apply_pad_assignments(payload, assignments, self.source_data)
+
+    def test_pad_assignment_requires_registered_sample(self) -> None:
+        _header, payload, _summary = read_project(self.source)
+        write_wav(self.source_data / "extra.wav")
+        assignments = {
+            0: PadAssignment(pad_index=0, file="extra.wav"),
+        }
+        with self.assertRaisesRegex(ValidationError, "samples"):
+            apply_pad_assignments(payload, assignments, self.source_data)
 
     def test_save_copy_copies_resources_and_preserves_unknown_fields(self) -> None:
         header, payload, _summary = read_project(self.source)

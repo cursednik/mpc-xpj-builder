@@ -6,7 +6,14 @@ import struct
 import unittest
 
 import audio_io
-from audio_io import AudioDevice, AudioSession, peak_percent, pick_mpc_input
+from audio_io import (
+    AudioDevice,
+    AudioSession,
+    friendly_error,
+    is_blocking_compatible,
+    peak_percent,
+    pick_mpc_input,
+)
 
 
 class AudioHelpersTests(unittest.TestCase):
@@ -52,6 +59,21 @@ class AudioHelpersTests(unittest.TestCase):
         session.stop()
         self.assertFalse(session.running)
         self.assertEqual(session.seconds, 0.0)
+
+    def test_wdm_ks_is_not_blocking_compatible(self) -> None:
+        self.assertFalse(is_blocking_compatible("Windows WDM-KS"))
+        self.assertTrue(is_blocking_compatible("Windows WASAPI"))
+        self.assertTrue(is_blocking_compatible("MME"))
+
+    def test_friendly_error_for_blocking_api(self) -> None:
+        message = friendly_error(
+            RuntimeError("Blocking API not supported yet")
+        )
+        self.assertIn("WASAPI", message)
+
+    def test_friendly_error_for_sample_rate(self) -> None:
+        message = friendly_error(RuntimeError("Invalid sample rate"))
+        self.assertIn("частоту", message)
 
     def test_dependency_available_is_bool(self) -> None:
         self.assertIsInstance(audio_io.dependency_available(), bool)
