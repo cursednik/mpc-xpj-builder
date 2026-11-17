@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
 
-**v1.10.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
+**v1.11.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
 Standard MIDI File. Windows GUI, CLI и batch-режим.
 
 [Скачать](https://github.com/cursednik/mpc-xpj-builder/releases) ·
@@ -180,8 +180,11 @@ PC отправляет MIDI Clock, Start и Stop; MPC Sample следует з�
 Windows installer/portable он уже включён.
 
 Если перетаскиваешь sample из Splice, приложение получает путь к WAV и
-обрабатывает его как обычный `.wav`. Если Splice отдаёт временный файл,
-проверь, что в поле «Папка с WAV» подставилась нужная папка.
+обрабатывает его как обычный `.wav`. В редакторе падов WAV можно перетащить
+**прямо на конкретный пад** — sample импортируется в проект и назначается.
+
+Если Splice отдаёт временный файл, проверь, что в поле «Папка с WAV»
+подставилась нужная папка.
 
 ## Редактирование существующего `.xpj`
 
@@ -224,6 +227,8 @@ Windows installer/portable он уже включён.
 - поддерживает автоназначение и пресеты;
 - **«Сохранить в .xpj»** пишет изменения с backup `<имя>.xpj.bak`;
 - **«Копия .xpj…»** создаёт новый проект и копирует папку ресурсов.
+- WAV из Splice можно перетащить **прямо на пад**: файл копируется в
+  `_[ProjectData]`, добавляется в `samples` проекта и назначается на пад.
 
 Ограничения:
 
@@ -342,7 +347,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v1.10.0-win64.zip
+dist\mpc-xpj-builder-v1.11.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -354,7 +359,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v1.10.0-setup.exe
+dist\mpc-xpj-builder-v1.11.0-setup.exe
 ```
 
 ## Как получить эталон
@@ -655,7 +660,7 @@ GUI-аргументы, project browser, drag-and-drop routing, pad-based кар
 extended-ноты, автоназначение, настройки GUI, recent projects, native drag-and-drop,
 пресеты карт, batch GUI, несколько sequence, прослушивание WAV, round-trip
 существующего `.xpj`, MIDI Clock, USB Audio, пады проекта и игнорирование
-лишних WAV. Всего 121 тест.
+лишних WAV. Всего 124 теста.
 
 ## Статус проверки
 

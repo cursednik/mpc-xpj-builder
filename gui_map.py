@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import queue
+import shutil
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
@@ -123,11 +124,13 @@ class MapEditorWindow(tk.Toplevel):
         self.midi_status_var = tk.StringVar(value="Pad MIDI выключен.")
         self.preview = audio_preview.AudioPreview()
         self._preview_after: str | None = None
+        self._tkdnd_enabled = False
 
         self._build_ui()
         self._load_note_map()
         self.refresh()
         self._refresh_midi_devices()
+        self._enable_pad_dnd()
 
     def _build_ui(self) -> None:
         self.columnconfigure(0, weight=1)
@@ -144,7 +147,7 @@ class MapEditorWindow(tk.Toplevel):
         )
         ttk.Label(
             top,
-            text="Все 128 падов доступны для загрузки семплов; MIDI-sequence может играть любые ноты при --extended-notes.",
+            text="Все 128 падов доступны для загрузки семплов; MIDI-sequence может играть любые ноты при --extended-notes. WAV можно перетащить прямо на пад.",
         ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 0))
 
         midi_frame = ttk.Frame(top)
@@ -1031,6 +1034,158 @@ class MapEditorWindow(tk.Toplevel):
         self._audition_note = note
         self._audition_after = self.after(220, self._finish_audition)
         self.midi_status_var.set(f"Audition: note {note}")
+
+    def _enable_pad_dnd(self) -> None:
+        try:
+            from tkinterdnd2 import DND_FILES
+        except Exception:
+            return
+        try:
+            for pad_number, button in self.pad_buttons.items():
+                button.drop_target_register(DND_FILES)
+                button.dnd_bind(
+                    "<<Drop>>",
+                    lambda event, number=pad_number: self._handle_pad_drop(
+                        event, number
+                    ),
+                )
+            self.tree.drop_target_register(DND_FILES)
+            self.tree.dnd_bind("<<Drop>>", self._handle_list_drop)
+            self._tkdnd_enabled = True
+        except Exception:
+            self._tkdnd_enabled = False
+
+    def _drop_paths(self, event) -> list[Path]:
+        try:
+            values = self.tk.splitlist(event.data)
+        except Exception:
+            values = [event.data]
+        return [Path(str(value)) for value in values]
+
+    def _handle_pad_drop(self, event, pad_number: int) -> str:
+        paths = self._drop_paths(event)
+        bank = self.bank_var.get().strip().upper() or "A"
+        try:
+            pad_index = kit_map.global_pad_index(bank, pad_number)
+        except ValueError:
+            return "copy"
+        self._import_samples(paths, pad_index)
+        return getattr(event, "action", "copy")
+
+    def _handle_list_drop(self, event) -> str:
+        self._import_samples(self._drop_paths(event), None)
+        return getattr(event, "action", "copy")
+
+    def _unique_target(self, source: Path, folder: Path) -> Path:
+        target = folder / source.name
+        try:
+            if source.resolve() == target.resolve():
+                return target
+        except OSError:
+            pass
+        if target.exists():
+            base = source.stem
+            suffix = source.suffix
+            counter = 2
+            while True:
+                candidate = folder / f"{base}_{counter}{suffix}"
+                if not candidate.exists():
+                    return candidate
+                counter += 1
+        return target
+
+    def _import_samples(
+        self,
+        paths: list[Path],
+        pad_index: int | None,
+    ) -> None:
+        wavs = [
+            path
+            for path in paths
+            if path.is_file() and path.suffix.lower() == ".wav"
+        ]
+        if not wavs:
+            self.status_var.set("Нужно перетащить WAV-файл.")
+            return
+
+        imported: list[str] = []
+        if self.project_path is not None:
+            if self.project_payload is None or self.project_samples_dir is None:
+                messagebox.showerror(
+                    "Пады",
+                    "Не найдена папка ресурсов проекта.",
+                    parent=self,
+                )
+                return
+            for wav in wavs:
+                try:
+                    payload, relative = project_editor.import_sample(
+                        self.project_payload,
+                        self.project_samples_dir,
+                        wav,
+                    )
+                except Exception as exc:
+                    messagebox.showerror("Импорт WAV", str(exc), parent=self)
+                    continue
+                self.project_payload = payload
+                imported.append(relative)
+        else:
+            folder = self._samples_dir()
+            if folder is None:
+                messagebox.showerror(
+                    "Импорт WAV",
+                    "Сначала выберите папку с WAV.",
+                    parent=self,
+                )
+                return
+            for wav in wavs:
+                target = self._unique_target(wav, folder)
+                try:
+                    if target.resolve() != wav.resolve():
+                        shutil.copy2(wav, target)
+                except OSError as exc:
+                    messagebox.showerror(
+                        "Импорт WAV",
+                        f"Не удалось скопировать {wav}: {exc}",
+                        parent=self,
+                    )
+                    continue
+                imported.append(target.relative_to(folder).as_posix())
+
+        if not imported:
+            return
+        self.refresh()
+        first = imported[0]
+        if self.tree.exists(first):
+            self.tree.selection_set(first)
+            self.tree.see(first)
+        if pad_index is not None:
+            self._assign_relative_to_pad(first, pad_index)
+            label = kit_map.bank_pad_label(pad_index)
+            self.status_var.set(f"Импортировано: {first} → {label}")
+            self.midi_status_var.set(
+                f"WAV: {first} → {label}; сохраните проект."
+            )
+        else:
+            self.status_var.set(f"Импортировано WAV: {len(imported)}")
+        self._refresh_details()
+
+    def _assign_relative_to_pad(self, relative: str, pad_index: int) -> None:
+        params = self._read_params()
+        if params is None:
+            return
+        gain, pan, tune, loop = params
+        self.assignments[pad_index] = kit_map.PadAssignment(
+            pad_index=pad_index,
+            file=relative,
+            gain=gain,
+            pan=pan,
+            tune=tune,
+            loop=loop,
+        )
+        self._refresh_tree()
+        self._refresh_pad_grid()
+        self._refresh_details()
 
     def _refresh_midi_devices(self) -> None:
         if self.midi_input is not None or self.midi_output is not None:

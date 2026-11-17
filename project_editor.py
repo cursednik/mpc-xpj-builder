@@ -136,6 +136,19 @@ def _drum_instruments(data: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+def _drum_track(data: dict[str, Any]) -> dict[str, Any] | None:
+    tracks = data.get("tracks")
+    if not isinstance(tracks, list):
+        return None
+    for track in tracks:
+        if not isinstance(track, dict):
+            continue
+        program = track.get("program")
+        if isinstance(program, dict) and isinstance(program.get("drum"), dict):
+            return track
+    return None
+
+
 def _count_assigned_pads(instruments: list[dict[str, Any]]) -> int:
     assigned = 0
     for instrument in instruments:
@@ -372,6 +385,99 @@ def apply_metadata(payload: dict[str, Any], title: str, bpm: float) -> dict[str,
             sequence["name"] = cleaned_title
         sequence["bpm"] = float32(bpm_value)
     return result
+
+
+def import_sample(
+    payload: dict[str, Any],
+    data_dir: Path,
+    source: Path,
+) -> tuple[dict[str, Any], str]:
+    """Скопировать WAV в проект и добавить sample entry."""
+    result = copy.deepcopy(payload)
+    data = _require_data(result)
+    source = Path(source)
+    if not source.is_file():
+        raise ValidationError(f"WAV не найден: {source}")
+    if source.suffix.lower() != ".wav":
+        raise ValidationError("Можно добавлять только WAV-файлы.")
+    try:
+        inspect_wav(source)
+    except Exception as exc:
+        raise ValidationError(f"Не удалось прочитать WAV {source}: {exc}") from exc
+
+    directory = Path(data_dir)
+    if not directory.is_dir():
+        raise ValidationError(
+            f"Папка ресурсов проекта не найдена: {directory}"
+        )
+
+    samples = data.get("samples")
+    if not isinstance(samples, list):
+        samples = []
+        data["samples"] = samples
+    paths = {
+        entry.get("path")
+        for entry in samples
+        if isinstance(entry, dict) and isinstance(entry.get("path"), str)
+    }
+    target_name = source.name
+    target = directory / target_name
+    if target_name in paths or target.exists():
+        try:
+            same = source.resolve() == target.resolve()
+        except OSError:
+            same = False
+        if same and target_name in paths:
+            return result, target_name
+        base = source.stem
+        suffix = source.suffix
+        counter = 2
+        while True:
+            candidate = f"{base}_{counter}{suffix}"
+            if candidate not in paths and not (directory / candidate).exists():
+                target_name = candidate
+                target = directory / target_name
+                break
+            counter += 1
+
+    try:
+        shutil.copy2(source, target)
+    except OSError as exc:
+        raise ExportError(f"Не удалось скопировать {source} -> {target}: {exc}") from exc
+
+    prototype = next(
+        (entry for entry in samples if isinstance(entry, dict)),
+        None,
+    )
+    entry = copy.deepcopy(prototype) if prototype is not None else {
+        "version": 1,
+        "loadImpl": 1,
+        "metadata": {},
+    }
+    entry["version"] = 1
+    entry["name"] = target.stem
+    entry["path"] = target_name
+    entry.setdefault("loadImpl", 1)
+    metadata = entry.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+        entry["metadata"] = metadata
+    bpm_raw = data.get("masterTempo", 120.0)
+    bpm = float(bpm_raw) if isinstance(bpm_raw, (int, float)) else 120.0
+    metadata["tempo"] = float32(bpm)
+    metadata.setdefault("rootNote", 60)
+    metadata.setdefault("tune", 0.0)
+    metadata.setdefault("key", data.get("key") or "C Major")
+    samples.append(entry)
+
+    track = _drum_track(data)
+    if track is not None:
+        track_samples = track.get("samples")
+        if not isinstance(track_samples, list):
+            track_samples = []
+            track["samples"] = track_samples
+        track_samples.append(copy.deepcopy(entry))
+    return result, target_name
 
 
 def save_project_copy(

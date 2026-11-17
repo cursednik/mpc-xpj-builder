@@ -12,6 +12,7 @@ from project_editor import (
     apply_metadata,
     apply_pad_assignments,
     data_dir_for,
+    import_sample,
     read_pad_assignments,
     read_project,
     save_project_copy,
@@ -138,6 +139,50 @@ class ProjectEditorTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValidationError, "samples"):
             apply_pad_assignments(payload, assignments, self.source_data)
+
+    def test_import_sample_adds_entry_and_file(self) -> None:
+        _header, payload, _summary = read_project(self.source)
+        source_wav = self.root / "splice.wav"
+        write_wav(source_wav, frames=600)
+        updated, relative = import_sample(
+            payload, self.source_data, source_wav
+        )
+        self.assertEqual(relative, "splice.wav")
+        self.assertTrue((self.source_data / relative).is_file())
+        self.assertIn(
+            relative,
+            {entry["path"] for entry in updated["data"]["samples"]},
+        )
+        track_samples = updated["data"]["tracks"][0]["samples"]
+        self.assertIn(relative, {entry["path"] for entry in track_samples})
+        self.assertNotIn(
+            relative,
+            {entry["path"] for entry in payload["data"]["samples"]},
+        )
+
+        assignments = {0: PadAssignment(pad_index=0, file=relative)}
+        assigned = apply_pad_assignments(
+            updated, assignments, self.source_data
+        )
+        loaded = read_pad_assignments(assigned)
+        self.assertEqual(loaded[0].file, relative)
+
+    def test_import_sample_uses_unique_name(self) -> None:
+        _header, payload, _summary = read_project(self.source)
+        source_wav = self.root / "kick.wav"
+        write_wav(source_wav, frames=600)
+        _updated, relative = import_sample(
+            payload, self.source_data, source_wav
+        )
+        self.assertEqual(relative, "kick_2.wav")
+        self.assertTrue((self.source_data / relative).is_file())
+
+    def test_import_sample_requires_project_data_dir(self) -> None:
+        _header, payload, _summary = read_project(self.source)
+        source_wav = self.root / "splice.wav"
+        write_wav(source_wav)
+        with self.assertRaises(ValidationError):
+            import_sample(payload, self.root / "missing", source_wav)
 
     def test_save_copy_copies_resources_and_preserves_unknown_fields(self) -> None:
         header, payload, _summary = read_project(self.source)

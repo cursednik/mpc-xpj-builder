@@ -1,3 +1,3 @@
 """Версия mpc_xpj_builder."""
 
-__version__ = __version__ = "1.10.0"
+__version__ = __version__ = "1.11.0"
