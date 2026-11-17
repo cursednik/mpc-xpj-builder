@@ -15,6 +15,7 @@ from typing import Sequence
 
 import main as cli
 from dnd import disable_file_drop, enable_file_drop, route_dropped
+from gui_audio import AudioWindow
 from gui_batch import BatchWindow
 from gui_map import MapEditorWindow
 from gui_projects import ProjectBrowserWindow
@@ -115,6 +116,7 @@ class App:
         self.project_browser: ProjectBrowserWindow | None = None
         self.batch_window: BatchWindow | None = None
         self.sync_window: SyncWindow | None = None
+        self.audio_window: AudioWindow | None = None
 
         saved = load_settings()
         self.recent_projects = list(saved.recent_projects)
@@ -138,8 +140,8 @@ class App:
 
     def _build_ui(self) -> None:
         self.root.title(f"MPC XPJ Builder {__version__}")
-        self.root.geometry("1000x700")
-        self.root.minsize(820, 580)
+        self.root.geometry("1120x720")
+        self.root.minsize(900, 600)
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
 
@@ -197,7 +199,7 @@ class App:
 
         actions = ttk.Frame(outer)
         actions.grid(row=1, column=0, sticky="ew", pady=(10, 8))
-        for column in range(8):
+        for column in range(9):
             actions.columnconfigure(column, weight=1)
 
         self.plan_button = ttk.Button(
@@ -242,19 +244,26 @@ class App:
         )
         self.sync_button.grid(row=0, column=5, sticky="ew", padx=5)
 
+        self.audio_button = ttk.Button(
+            actions,
+            text="Audio…",
+            command=self._open_audio,
+        )
+        self.audio_button.grid(row=0, column=6, sticky="ew", padx=5)
+
         self.open_button = ttk.Button(
             actions,
             text="Открыть папку",
             command=self._open_output,
         )
-        self.open_button.grid(row=0, column=6, sticky="ew", padx=5)
+        self.open_button.grid(row=0, column=7, sticky="ew", padx=5)
 
         self.clear_button = ttk.Button(
             actions,
             text="Очистить лог",
             command=self._clear_log,
         )
-        self.clear_button.grid(row=0, column=7, sticky="ew", padx=(5, 0))
+        self.clear_button.grid(row=0, column=8, sticky="ew", padx=(5, 0))
 
         log_frame = ttk.LabelFrame(outer, text="Лог", padding=8)
         log_frame.grid(row=2, column=0, sticky="nsew")
@@ -331,6 +340,7 @@ class App:
             self.projects_button,
             self.batch_button,
             self.sync_button,
+            self.audio_button,
             self.open_button,
             self.clear_button,
         ):
@@ -484,6 +494,13 @@ class App:
             self.sync_window.focus_force()
             return
         self.sync_window = SyncWindow(self.root, bpm=self.bpm_var.get())
+
+    def _open_audio(self) -> None:
+        if self.audio_window is not None and self.audio_window.winfo_exists():
+            self.audio_window.lift()
+            self.audio_window.focus_force()
+            return
+        self.audio_window = AudioWindow(self.root)
 
     def _save_settings(self, *, show_error: bool) -> None:
         try:

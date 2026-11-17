@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/cursednik/mpc-xpj-builder/actions/workflows/ci.yml)
 
-**v1.6.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
+**v1.7.0** — сборка drum-проекта для **Akai MPC Sample** из папки WAV и одного
 Standard MIDI File. Windows GUI, CLI и batch-режим.
 
 [Скачать](https://github.com/cursednik/mpc-xpj-builder/releases) ·
@@ -18,6 +18,7 @@ Standard MIDI File. Windows GUI, CLI и batch-режим.
 - Редактор карты с автоназначением и `map.json`.
 - Прослушивание WAV прямо в редакторе карты.
 - MIDI Clock Sync в обе стороны: PC → MPC и MPC → PC.
+- USB Audio: запись WAV и мониторинг MPC Sample.
 - Extended MIDI notes 0–127.
 - Несколько MIDI-файлов превращаются в несколько MPC sequence.
 - Loop, gain, pan, tune.
@@ -52,7 +53,15 @@ Standard MIDI File. Windows GUI, CLI и batch-режим.
 
 ## Зависимости
 
-Только стандартная библиотека Python 3.11+. Runtime-зависимостей нет.
+Основные функции работают на стандартной библиотеке Python 3.11+.
+
+Для **USB Audio** нужен `sounddevice` (PortAudio):
+
+```powershell
+python -m pip install -e ".[audio]"
+```
+
+В Windows installer и portable ZIP `sounddevice` уже включён.
 
 ## Установка как CLI
 
@@ -221,6 +230,36 @@ PC отправляет MIDI Clock, Start и Stop; MPC Sample следует з�
 только зарядный), режим `MIDI Port = USB` и закройте другие приложения,
 которые могли занять MIDI-порт.
 
+## USB Audio
+
+![USB Audio](docs/images/gui-audio.png)
+
+Кнопка **«Audio…»** открывает запись и мониторинг USB-аудио MPC Sample.
+
+1. Подключите MPC Sample по USB-C.
+2. Откройте **«Audio…»**.
+3. Вход: **«Микрофон (MPC Sample Audio)»**.
+4. Для мониторинга выберите выход наушников/колонок. Не выбирайте выход MPC
+   Sample — получится петля.
+5. **● Запись WAV…** — запись в стерео WAV.
+6. **▶ Монитор** — прослушивание без записи.
+7. **■ Стоп** — остановка.
+
+Поддерживается:
+
+- выбор входа и выхода;
+- 44100 / 48000 Hz;
+- запись int16 PCM WAV;
+- индикатор уровня и времени;
+- остановка без зависания.
+
+Ограничения:
+
+- один стереопоток, без многодорожечной записи;
+- без ASIO и без компенсации задержки;
+- запись идёт через WASAPI/MME PortAudio; если выбрана неподдерживаемая
+  частота, появляется `Invalid sample rate` — выберите другую.
+
 ## Сборка `.exe`
 
 PyInstaller нужен только для сборки, не для работы:
@@ -237,7 +276,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```text
 dist\mpc-xpj-builder.exe
 dist\mpc-xpj-builder-gui.exe
-dist\mpc-xpj-builder-v1.6.0-win64.zip
+dist\mpc-xpj-builder-v1.7.0-win64.zip
 ```
 
 Windows installer (нужен Inno Setup 6):
@@ -249,7 +288,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_installer.ps1
 Результат:
 
 ```text
-dist\mpc-xpj-builder-v1.6.0-setup.exe
+dist\mpc-xpj-builder-v1.7.0-setup.exe
 ```
 
 ## Как получить эталон
@@ -549,7 +588,8 @@ running status и note-on velocity 0 в MIDI, tempo/time signature, dry-run,
 GUI-аргументы, project browser, drag-and-drop routing, pad-based карта,
 extended-ноты, автоназначение, настройки GUI, recent projects, native drag-and-drop,
 пресеты карт, batch GUI, несколько sequence, прослушивание WAV, round-trip
-существующего `.xpj`, MIDI Clock и игнорирование лишних WAV. Всего 101 тест.
+существующего `.xpj`, MIDI Clock, USB Audio и игнорирование лишних WAV.
+Всего 110 тестов.
 
 ## Статус проверки
 

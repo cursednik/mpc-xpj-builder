@@ -31,8 +31,12 @@ mpc-xpj-builder = "main:main"
 mpc-xpj-builder-gui = "gui:main"
 
 [project.optional-dependencies]
+audio = [
+  "sounddevice>=0.4",
+]
 dev = [
   "pyinstaller>=6.0",
+  "sounddevice>=0.4",
 ]
 
 [project.urls]
@@ -40,11 +44,13 @@ Homepage = "https://github.com/cursednik/mpc-xpj-builder"
 
 [tool.setuptools]
 py-modules = [
+  "audio_io",
   "audio_preview",
   "batch",
   "dnd",
   "errors",
   "gui",
+  "gui_audio",
   "gui_batch",
   "gui_map",
   "gui_project_editor",
